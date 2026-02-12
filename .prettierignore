@@ -3,6 +3,7 @@
 
 # Dependency Directories
 node_modules
+package-lock.json
 
 # Build
 dist
@@ -11,6 +12,10 @@ dist
 .env
 .env.*
 !.env.example
+
+# HTML & CSS
+.html
+.css
 
 # Developer Directories
 .Extras

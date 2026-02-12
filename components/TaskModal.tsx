@@ -1,8 +1,7 @@
-
-import React, { useState, useMemo } from 'react';
-import { X, Send, ClipboardList, Mic, Calendar as CalendarIcon, Loader2 } from 'lucide-react';
-import { Owner } from '../types';
-import { translations, Language } from '../translations';
+import React, { useState, useMemo } from "react";
+import { X, Send, ClipboardList, Mic, Calendar as CalendarIcon, Loader2 } from "lucide-react";
+import { Owner } from "../types";
+import { translations, Language } from "../translations";
 
 interface TaskModalProps {
   owner: Owner;
@@ -12,10 +11,10 @@ interface TaskModalProps {
 }
 
 const TaskModal: React.FC<TaskModalProps> = ({ owner, onClose, onAssign, lang }) => {
-  const [taskText, setTaskText] = useState('');
-  const [deadline, setDeadline] = useState('');
+  const [taskText, setTaskText] = useState("");
+  const [deadline, setDeadline] = useState("");
   const [isListening, setIsListening] = useState(false);
-  
+
   const t = useMemo(() => translations[lang], [lang]);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -28,12 +27,16 @@ const TaskModal: React.FC<TaskModalProps> = ({ owner, onClose, onAssign, lang })
   const startVoiceInput = () => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) {
-      alert(lang === 'de' ? "Spracherkennung wird von Ihrem Browser nicht unterstützt." : "Speech recognition is not supported by your browser.");
+      alert(
+        lang === "de"
+          ? "Spracherkennung wird von Ihrem Browser nicht unterstützt."
+          : "Speech recognition is not supported by your browser."
+      );
       return;
     }
 
     const recognition = new SpeechRecognition();
-    recognition.lang = lang === 'de' ? 'de-DE' : 'en-US';
+    recognition.lang = lang === "de" ? "de-DE" : "en-US";
     recognition.continuous = false;
     recognition.interimResults = false;
 
@@ -41,7 +44,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ owner, onClose, onAssign, lang })
     recognition.onend = () => setIsListening(false);
     recognition.onresult = (event: any) => {
       const transcript = event.results[0][0].transcript;
-      setTaskText(prev => (prev ? prev + ' ' + transcript : transcript));
+      setTaskText((prev) => (prev ? prev + " " + transcript : transcript));
     };
     recognition.onerror = (event: any) => {
       console.error("Speech recognition error", event.error);
@@ -77,7 +80,9 @@ const TaskModal: React.FC<TaskModalProps> = ({ owner, onClose, onAssign, lang })
           </div>
 
           <div className="mb-4">
-            <label className="block text-xs font-bold text-gray-500 uppercase mb-2 tracking-wider">{t.taskModal.summaryLabel}</label>
+            <label className="block text-xs font-bold text-gray-500 uppercase mb-2 tracking-wider">
+              {t.taskModal.summaryLabel}
+            </label>
             <div className="relative">
               <textarea
                 required
@@ -91,9 +96,11 @@ const TaskModal: React.FC<TaskModalProps> = ({ owner, onClose, onAssign, lang })
                 type="button"
                 onClick={startVoiceInput}
                 className={`absolute right-3 bottom-3 p-2 rounded-lg transition-all ${
-                  isListening ? 'bg-red-100 text-red-600 animate-pulse' : 'text-gray-400 hover:text-blue-600 hover:bg-blue-50'
+                  isListening
+                    ? "bg-red-100 text-red-600 animate-pulse"
+                    : "text-gray-400 hover:text-blue-600 hover:bg-blue-50"
                 }`}
-                title={lang === 'de' ? "Per Spracheingabe hinzufügen" : "Add via voice input"}
+                title={lang === "de" ? "Per Spracheingabe hinzufügen" : "Add via voice input"}
               >
                 <Mic size={20} />
               </button>
@@ -101,13 +108,15 @@ const TaskModal: React.FC<TaskModalProps> = ({ owner, onClose, onAssign, lang })
             {isListening && (
               <p className="text-[10px] text-red-500 font-bold flex items-center gap-1 mt-1 animate-pulse">
                 <Loader2 className="animate-spin" size={10} />
-                {lang === 'de' ? 'Höre zu...' : 'Listening...'}
+                {lang === "de" ? "Höre zu..." : "Listening..."}
               </p>
             )}
           </div>
 
           <div className="mb-6">
-            <label className="block text-xs font-bold text-gray-500 uppercase mb-2 tracking-wider">{t.taskModal.deadlineLabel}</label>
+            <label className="block text-xs font-bold text-gray-500 uppercase mb-2 tracking-wider">
+              {t.taskModal.deadlineLabel}
+            </label>
             <div className="relative">
               <CalendarIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
               <input

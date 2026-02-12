@@ -1,49 +1,48 @@
-
 export enum PipelineStage {
-  IDENTIFIED = 'Lead identifiziert',
-  CONTACTED = 'Kontakt aufgenommen',
-  QUALIFIED = 'Qualifiziert',
-  NEGOTIATION = 'Angebot / Verhandlung',
-  CLOSED = 'Erfolgreicher Abschluss',
-  TRASH = 'Papierkorb'
+  IDENTIFIED = "Lead identifiziert",
+  CONTACTED = "Kontakt aufgenommen",
+  QUALIFIED = "Qualifiziert",
+  NEGOTIATION = "Angebot / Verhandlung",
+  CLOSED = "Erfolgreicher Abschluss",
+  TRASH = "Papierkorb"
 }
 
 export enum DealType {
-  CONSULTING = 'Beratung',
-  ONLINE_TRAINING = 'Online Training',
-  OFFSITE = 'Offsite'
+  CONSULTING = "Beratung",
+  ONLINE_TRAINING = "Online Training",
+  OFFSITE = "Offsite"
 }
 
 export enum UserStatus {
-  INVITED = 'Eingeladen',
-  ACTIVE = 'Aktiv',
-  DISABLED = 'Deaktiviert'
+  INVITED = "Eingeladen",
+  ACTIVE = "Aktiv",
+  DISABLED = "Deaktiviert"
 }
 
 export enum EmailProvider {
-  WORKSPACE_GMAIL_API = 'workspace_gmail_api',
-  SMTP_RELAY = 'smtp_relay'
+  WORKSPACE_GMAIL_API = "workspace_gmail_api",
+  SMTP_RELAY = "smtp_relay"
 }
 
 export interface EmailSettings {
   provider: EmailProvider;
   serviceMailboxEmail: string; // Real mailbox (mailer@...)
-  brandFromEmail: string;      // Alias/Group (sales@...)
+  brandFromEmail: string; // Alias/Group (sales@...)
   fromName: string;
   replyToEmail?: string;
-  googleSAJson?: string;       // Service Account JSON string
+  googleSAJson?: string; // Service Account JSON string
   smtpHost?: string;
   smtpPort?: number;
   smtpUser?: string;
   smtpPass?: string;
-  lastCheckStatus?: 'ok' | 'error';
+  lastCheckStatus?: "ok" | "error";
   lastCheckMessage?: string;
 }
 
 export interface UserSettings {
   pushNotificationsEnabled: boolean;
-  theme: 'light' | 'dark';
-  language: 'de' | 'en';
+  theme: "light" | "dark";
+  language: "de" | "en";
 }
 
 export interface Comment {
@@ -155,5 +154,5 @@ export interface EnrichmentData {
   twitterUrl?: string;
 }
 
-export type SortField = 'lastName' | 'createdAt';
-export type SortOrder = 'asc' | 'desc';
+export type SortField = "lastName" | "createdAt";
+export type SortOrder = "asc" | "desc";

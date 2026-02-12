@@ -1,34 +1,31 @@
-
-import React, { useState, useMemo } from 'react';
-import { X, Save, FolderPlus, Search, Check, User } from 'lucide-react';
-import { Lead, Project, Owner } from '../types';
-import { translations, Language } from '../translations';
+import React, { useState, useMemo } from "react";
+import { X, Save, FolderPlus, Search, Check, User } from "lucide-react";
+import { Lead, Project, Owner } from "../types";
+import { translations, Language } from "../translations";
 
 interface ProjectModalProps {
   leads: Lead[];
   owners: Owner[];
   onClose: () => void;
-  onSave: (project: Omit<Project, 'id' | 'createdAt'>, leadIds: string[]) => void;
+  onSave: (project: Omit<Project, "id" | "createdAt">, leadIds: string[]) => void;
   lang?: Language;
 }
 
-const ProjectModal: React.FC<ProjectModalProps> = ({ leads, owners, onClose, onSave, lang = 'de' }) => {
+const ProjectModal: React.FC<ProjectModalProps> = ({ leads, owners, onClose, onSave, lang = "de" }) => {
   const t = useMemo(() => translations[lang], [lang]);
 
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [managerName, setManagerName] = useState(owners[0]?.name || '');
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [managerName, setManagerName] = useState(owners[0]?.name || "");
   const [selectedLeadIds, setSelectedLeadIds] = useState<string[]>([]);
-  const [leadSearch, setLeadSearch] = useState('');
+  const [leadSearch, setLeadSearch] = useState("");
 
   const handleToggleLead = (id: string) => {
-    setSelectedLeadIds(prev => 
-      prev.includes(id) ? prev.filter(lid => lid !== id) : [...prev, id]
-    );
+    setSelectedLeadIds((prev) => (prev.includes(id) ? prev.filter((lid) => lid !== id) : [...prev, id]));
   };
 
-  const filteredLeads = leads.filter(l => 
-    `${l.firstName} ${l.lastName} ${l.company || ''}`.toLowerCase().includes(leadSearch.toLowerCase())
+  const filteredLeads = leads.filter((l) =>
+    `${l.firstName} ${l.lastName} ${l.company || ""}`.toLowerCase().includes(leadSearch.toLowerCase())
   );
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -55,7 +52,9 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ leads, owners, onClose, onS
         <form onSubmit={handleSubmit} className="p-8">
           <div className="space-y-6">
             <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase mb-2 tracking-wider">{lang === 'de' ? 'Projekttitel *' : 'Project Title *'}</label>
+              <label className="block text-xs font-bold text-gray-500 uppercase mb-2 tracking-wider">
+                {lang === "de" ? "Projekttitel *" : "Project Title *"}
+              </label>
               <input
                 required
                 autoFocus
@@ -68,7 +67,9 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ leads, owners, onClose, onS
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase mb-2 tracking-wider">{t.myProjects.managerLabel} *</label>
+              <label className="block text-xs font-bold text-gray-500 uppercase mb-2 tracking-wider">
+                {t.myProjects.managerLabel} *
+              </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
                   <User size={16} />
@@ -79,8 +80,10 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ leads, owners, onClose, onS
                   onChange={(e) => setManagerName(e.target.value)}
                   className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm appearance-none"
                 >
-                  <option value="" disabled>{lang === 'de' ? 'Teammitglied wählen' : 'Select team member'}</option>
-                  {owners.map(owner => (
+                  <option value="" disabled>
+                    {lang === "de" ? "Teammitglied wählen" : "Select team member"}
+                  </option>
+                  {owners.map((owner) => (
                     <option key={owner.id} value={owner.name}>
                       {owner.name} ({owner.role})
                     </option>
@@ -90,7 +93,9 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ leads, owners, onClose, onS
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase mb-2 tracking-wider">{lang === 'de' ? 'Kurzbeschreibung' : 'Short Description'}</label>
+              <label className="block text-xs font-bold text-gray-500 uppercase mb-2 tracking-wider">
+                {lang === "de" ? "Kurzbeschreibung" : "Short Description"}
+              </label>
               <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
@@ -100,7 +105,9 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ leads, owners, onClose, onS
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase mb-2 tracking-wider">{t.myProjects.assignLeads} ({selectedLeadIds.length})</label>
+              <label className="block text-xs font-bold text-gray-500 uppercase mb-2 tracking-wider">
+                {t.myProjects.assignLeads} ({selectedLeadIds.length})
+              </label>
               <div className="relative mb-3">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
                 <input
@@ -113,26 +120,33 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ leads, owners, onClose, onS
               </div>
               <div className="border border-gray-100 rounded-xl max-h-48 overflow-y-auto divide-y divide-gray-50 custom-scrollbar">
                 {filteredLeads.length === 0 ? (
-                  <p className="p-4 text-xs text-gray-400 text-center italic">{lang === 'de' ? 'Keine Leads gefunden.' : 'No leads found.'}</p>
+                  <p className="p-4 text-xs text-gray-400 text-center italic">
+                    {lang === "de" ? "Keine Leads gefunden." : "No leads found."}
+                  </p>
                 ) : (
-                  filteredLeads.map(lead => (
-                    <div 
-                      key={lead.id} 
+                  filteredLeads.map((lead) => (
+                    <div
+                      key={lead.id}
                       onClick={() => handleToggleLead(lead.id)}
                       className="flex items-center justify-between p-3 hover:bg-gray-50 cursor-pointer transition-colors"
                     >
                       <div className="flex items-center space-x-3 overflow-hidden">
                         <div className="w-8 h-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-[10px] shrink-0">
-                          {lead.firstName[0]}{lead.lastName[0]}
+                          {lead.firstName[0]}
+                          {lead.lastName[0]}
                         </div>
                         <div className="overflow-hidden">
-                          <p className="text-xs font-bold text-gray-900 truncate">{lead.firstName} {lead.lastName}</p>
+                          <p className="text-xs font-bold text-gray-900 truncate">
+                            {lead.firstName} {lead.lastName}
+                          </p>
                           <p className="text-[10px] text-gray-500 truncate">{lead.company || lead.currentPosition}</p>
                         </div>
                       </div>
-                      <div className={`w-5 h-5 rounded-md border flex items-center justify-center transition-all ${
-                        selectedLeadIds.includes(lead.id) ? 'bg-blue-600 border-blue-600' : 'border-gray-200'
-                      }`}>
+                      <div
+                        className={`w-5 h-5 rounded-md border flex items-center justify-center transition-all ${
+                          selectedLeadIds.includes(lead.id) ? "bg-blue-600 border-blue-600" : "border-gray-200"
+                        }`}
+                      >
                         {selectedLeadIds.includes(lead.id) && <Check size={12} className="text-white" />}
                       </div>
                     </div>

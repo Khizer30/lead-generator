@@ -1,6 +1,5 @@
-
-import React, { useState } from 'react';
-import { X, Mail, Send, Check, Users, Shield, Loader2 } from 'lucide-react';
+import React, { useState } from "react";
+import { X, Mail, Send, Check, Users, Shield, Loader2 } from "lucide-react";
 
 interface ShareModalProps {
   onClose: () => void;
@@ -10,8 +9,8 @@ interface ShareModalProps {
 
 // Destructure onInvite from props
 const ShareModal: React.FC<ShareModalProps> = ({ onClose, onInvite }) => {
-  const [email, setEmail] = useState('');
-  const [role, setRole] = useState<'Editor' | 'Admin'>('Editor');
+  const [email, setEmail] = useState("");
+  const [role, setRole] = useState<"Editor" | "Admin">("Editor");
   const [isSending, setIsSending] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
@@ -40,8 +39,8 @@ const ShareModal: React.FC<ShareModalProps> = ({ onClose, onInvite }) => {
           </div>
           <h2 className="text-2xl font-bold text-gray-900 mb-2">Einladung gesendet!</h2>
           <p className="text-gray-500 mb-8">
-            Eine Einladung wurde an <span className="font-semibold text-gray-900">{email}</span> gesendet. 
-            Sobald der Mitarbeiter bestätigt, hat er vollen Zugriff auf alle Leads.
+            Eine Einladung wurde an <span className="font-semibold text-gray-900">{email}</span> gesendet. Sobald der
+            Mitarbeiter bestätigt, hat er vollen Zugriff auf alle Leads.
           </p>
           <button
             onClick={onClose}
@@ -70,12 +69,15 @@ const ShareModal: React.FC<ShareModalProps> = ({ onClose, onInvite }) => {
 
         <div className="p-8">
           <p className="text-sm text-gray-500 mb-6">
-            Laden Sie Kollegen ein, um gemeinsam an der Lead-Pipeline zu arbeiten. Eingeladene Personen können Leads sehen, bearbeiten und neue hinzufügen.
+            Laden Sie Kollegen ein, um gemeinsam an der Lead-Pipeline zu arbeiten. Eingeladene Personen können Leads
+            sehen, bearbeiten und neue hinzufügen.
           </p>
 
           <form onSubmit={handleInvite} className="space-y-6">
             <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase mb-2">E-Mail Adresse des Mitarbeiters</label>
+              <label className="block text-xs font-bold text-gray-500 uppercase mb-2">
+                E-Mail Adresse des Mitarbeiters
+              </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
                   <Mail size={18} />
@@ -96,23 +98,23 @@ const ShareModal: React.FC<ShareModalProps> = ({ onClose, onInvite }) => {
               <div className="grid grid-cols-2 gap-3">
                 <button
                   type="button"
-                  onClick={() => setRole('Editor')}
-                  className={`p-3 rounded-xl border text-left transition-all ${role === 'Editor' ? 'border-blue-600 bg-blue-50 ring-1 ring-blue-600' : 'border-gray-200 hover:bg-gray-50'}`}
+                  onClick={() => setRole("Editor")}
+                  className={`p-3 rounded-xl border text-left transition-all ${role === "Editor" ? "border-blue-600 bg-blue-50 ring-1 ring-blue-600" : "border-gray-200 hover:bg-gray-50"}`}
                 >
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-sm font-bold text-gray-900">Editor</span>
-                    {role === 'Editor' && <Check size={14} className="text-blue-600" />}
+                    {role === "Editor" && <Check size={14} className="text-blue-600" />}
                   </div>
                   <p className="text-[10px] text-gray-500">Kann Leads bearbeiten & erstellen</p>
                 </button>
                 <button
                   type="button"
-                  onClick={() => setRole('Admin')}
-                  className={`p-3 rounded-xl border text-left transition-all ${role === 'Admin' ? 'border-blue-600 bg-blue-50 ring-1 ring-blue-600' : 'border-gray-200 hover:bg-gray-50'}`}
+                  onClick={() => setRole("Admin")}
+                  className={`p-3 rounded-xl border text-left transition-all ${role === "Admin" ? "border-blue-600 bg-blue-50 ring-1 ring-blue-600" : "border-gray-200 hover:bg-gray-50"}`}
                 >
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-sm font-bold text-gray-900">Admin</span>
-                    {role === 'Admin' && <Check size={14} className="text-blue-600" />}
+                    {role === "Admin" && <Check size={14} className="text-blue-600" />}
                   </div>
                   <p className="text-[10px] text-gray-500">Vollzugriff & Teamverwaltung</p>
                 </button>
@@ -122,7 +124,8 @@ const ShareModal: React.FC<ShareModalProps> = ({ onClose, onInvite }) => {
             <div className="bg-blue-50 p-4 rounded-xl flex items-start space-x-3">
               <Shield className="text-blue-600 shrink-0 mt-0.5" size={16} />
               <p className="text-[11px] text-blue-700 leading-relaxed">
-                Der Zugriff ist uneingeschränkt. Neue Mitglieder können alle vorhandenen Lead-Daten einsehen und die Pipeline verwalten.
+                Der Zugriff ist uneingeschränkt. Neue Mitglieder können alle vorhandenen Lead-Daten einsehen und die
+                Pipeline verwalten.
               </p>
             </div>
 

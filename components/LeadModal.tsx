@@ -1,10 +1,9 @@
-
-import React, { useState, useMemo } from 'react';
-import { X, Linkedin, Loader2, ChevronRight, Check, User, Building, Calendar, Link as LinkIcon } from 'lucide-react';
-import { Lead, PipelineStage, EnrichmentData, Owner } from '../types';
-import { STAGES } from '../constants';
-import { api } from '../services/api';
-import { translations, Language } from '../translations';
+import React, { useState, useMemo } from "react";
+import { X, Linkedin, Loader2, ChevronRight, Check, User, Building, Calendar, Link as LinkIcon } from "lucide-react";
+import { Lead, PipelineStage, EnrichmentData, Owner } from "../types";
+import { STAGES } from "../constants";
+import { api } from "../services/api";
+import { translations, Language } from "../translations";
 
 interface LeadModalProps {
   onClose: () => void;
@@ -16,37 +15,43 @@ interface LeadModalProps {
 const LeadModal: React.FC<LeadModalProps> = ({ onClose, onSave, owners, lang }) => {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
-  const [enrichmentError, setEnrichmentError] = useState('');
-  
+  const [enrichmentError, setEnrichmentError] = useState("");
+
   const t = useMemo(() => translations[lang], [lang]);
 
   const [formData, setFormData] = useState<Partial<Lead>>({
-    firstName: '',
-    lastName: '',
-    currentPosition: '',
-    company: '',
-    linkedinUrl: '',
-    ownerName: '',
+    firstName: "",
+    lastName: "",
+    currentPosition: "",
+    company: "",
+    linkedinUrl: "",
+    ownerName: "",
     pipelineStage: PipelineStage.IDENTIFIED,
-    email: '',
-    phone: '',
-    birthday: ''
+    email: "",
+    phone: "",
+    birthday: ""
   });
 
   const handleEnrich = async () => {
-    if (!formData.linkedinUrl?.includes('linkedin.com/')) {
-      setEnrichmentError(lang === 'de' ? 'Bitte geben Sie eine gültige LinkedIn URL ein.' : 'Please enter a valid LinkedIn URL.');
+    if (!formData.linkedinUrl?.includes("linkedin.com/")) {
+      setEnrichmentError(
+        lang === "de" ? "Bitte geben Sie eine gültige LinkedIn URL ein." : "Please enter a valid LinkedIn URL."
+      );
       return;
     }
 
     setLoading(true);
-    setEnrichmentError('');
+    setEnrichmentError("");
     try {
       const data = await api.enrichLinkedIn(formData.linkedinUrl);
-      setFormData(prev => ({ ...prev, ...data }));
+      setFormData((prev) => ({ ...prev, ...data }));
       setStep(2);
     } catch (err) {
-      setEnrichmentError(lang === 'de' ? 'Enrichment fehlgeschlagen. Bitte manuell ausfüllen.' : 'Enrichment failed. Please fill manually.');
+      setEnrichmentError(
+        lang === "de"
+          ? "Enrichment fehlgeschlagen. Bitte manuell ausfüllen."
+          : "Enrichment failed. Please fill manually."
+      );
       setStep(2);
     } finally {
       setLoading(false);
@@ -72,9 +77,17 @@ const LeadModal: React.FC<LeadModalProps> = ({ onClose, onSave, owners, lang }) 
         <div className="p-8 h-[75vh] overflow-y-auto custom-scrollbar">
           {/* Stepper */}
           <div className="flex items-center mb-8">
-            <div className={`flex items-center justify-center w-8 h-8 rounded-full text-xs font-bold transition-colors ${step >= 1 ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-500'}`}>1</div>
-            <div className={`flex-1 h-0.5 mx-3 ${step >= 2 ? 'bg-blue-600' : 'bg-gray-200'}`} />
-            <div className={`flex items-center justify-center w-8 h-8 rounded-full text-xs font-bold transition-colors ${step >= 2 ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-500'}`}>2</div>
+            <div
+              className={`flex items-center justify-center w-8 h-8 rounded-full text-xs font-bold transition-colors ${step >= 1 ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-500"}`}
+            >
+              1
+            </div>
+            <div className={`flex-1 h-0.5 mx-3 ${step >= 2 ? "bg-blue-600" : "bg-gray-200"}`} />
+            <div
+              className={`flex items-center justify-center w-8 h-8 rounded-full text-xs font-bold transition-colors ${step >= 2 ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-500"}`}
+            >
+              2
+            </div>
           </div>
 
           {step === 1 ? (
@@ -119,7 +132,9 @@ const LeadModal: React.FC<LeadModalProps> = ({ onClose, onSave, owners, lang }) 
             <form onSubmit={handleSubmit} className="space-y-4 pb-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">{t.leadModal.firstName} *</label>
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
+                    {t.leadModal.firstName} *
+                  </label>
                   <input
                     required
                     type="text"
@@ -129,7 +144,9 @@ const LeadModal: React.FC<LeadModalProps> = ({ onClose, onSave, owners, lang }) 
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">{t.leadModal.lastName} *</label>
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
+                    {t.leadModal.lastName} *
+                  </label>
                   <input
                     required
                     type="text"
@@ -139,10 +156,12 @@ const LeadModal: React.FC<LeadModalProps> = ({ onClose, onSave, owners, lang }) 
                   />
                 </div>
               </div>
-              
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">{t.leadModal.position} *</label>
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
+                    {t.leadModal.position} *
+                  </label>
                   <input
                     required
                     type="text"
@@ -170,9 +189,13 @@ const LeadModal: React.FC<LeadModalProps> = ({ onClose, onSave, owners, lang }) 
                   onChange={(e) => setFormData({ ...formData, ownerName: e.target.value })}
                   className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 bg-white"
                 >
-                  <option value="" disabled>{t.leadModal.selectOwner}</option>
-                  {owners.map(o => (
-                    <option key={o.id} value={o.name}>{o.name}</option>
+                  <option value="" disabled>
+                    {t.leadModal.selectOwner}
+                  </option>
+                  {owners.map((o) => (
+                    <option key={o.id} value={o.name}>
+                      {o.name}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -200,7 +223,9 @@ const LeadModal: React.FC<LeadModalProps> = ({ onClose, onSave, owners, lang }) 
 
               {/* LinkedIn URL field added to manual step */}
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">{t.leadModal.linkedinLabel}</label>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
+                  {t.leadModal.linkedinLabel}
+                </label>
                 <div className="relative">
                   <Linkedin className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
                   <input

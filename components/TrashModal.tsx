@@ -1,8 +1,7 @@
-
-import React, { useMemo } from 'react';
-import { X, Trash2, RotateCcw, User, Briefcase, Building } from 'lucide-react';
-import { Lead } from '../types';
-import { translations, Language } from '../translations';
+import React, { useMemo } from "react";
+import { X, Trash2, RotateCcw, User, Briefcase, Building } from "lucide-react";
+import { Lead } from "../types";
+import { translations, Language } from "../translations";
 
 interface TrashModalProps {
   leads: Lead[];
@@ -39,14 +38,20 @@ const TrashModal: React.FC<TrashModalProps> = ({ leads, lang, onClose, onRestore
               <p>{t.trash.noLeads}</p>
             </div>
           ) : (
-            leads.map(lead => (
-              <div key={lead.id} className="bg-gray-50 p-4 rounded-2xl border border-gray-100 flex items-center justify-between group">
+            leads.map((lead) => (
+              <div
+                key={lead.id}
+                className="bg-gray-50 p-4 rounded-2xl border border-gray-100 flex items-center justify-between group"
+              >
                 <div className="flex items-center gap-4">
                   <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center text-red-600 font-bold text-sm">
-                    {lead.firstName[0]}{lead.lastName[0]}
+                    {lead.firstName[0]}
+                    {lead.lastName[0]}
                   </div>
                   <div>
-                    <h3 className="text-sm font-bold text-gray-900">{lead.firstName} {lead.lastName}</h3>
+                    <h3 className="text-sm font-bold text-gray-900">
+                      {lead.firstName} {lead.lastName}
+                    </h3>
                     <div className="flex items-center gap-2 text-[10px] text-gray-500 font-medium mt-0.5">
                       <Briefcase size={10} />
                       <span className="truncate">{lead.currentPosition}</span>
@@ -61,15 +66,17 @@ const TrashModal: React.FC<TrashModalProps> = ({ leads, lang, onClose, onRestore
                   </div>
                 </div>
                 <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button 
+                  <button
                     onClick={() => onRestore(lead.id)}
                     className="p-2 bg-white text-emerald-600 hover:bg-emerald-50 rounded-xl border border-emerald-100 shadow-sm transition-all"
                     title={t.trash.restore}
                   >
                     <RotateCcw size={16} />
                   </button>
-                  <button 
-                    onClick={() => { if(window.confirm(t.trash.confirmPermanent)) onPermanentDelete(lead.id); }}
+                  <button
+                    onClick={() => {
+                      if (window.confirm(t.trash.confirmPermanent)) onPermanentDelete(lead.id);
+                    }}
                     className="p-2 bg-white text-red-600 hover:bg-red-50 rounded-xl border border-red-100 shadow-sm transition-all"
                     title={t.trash.permanentDelete}
                   >

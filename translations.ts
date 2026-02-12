@@ -1,4 +1,3 @@
-
 export const translations = {
   de: {
     sidebar: {
@@ -92,7 +91,8 @@ export const translations = {
       subtitle: "Verwalten Sie Ihre persönlichen Präferenzen und Systemoptionen.",
       notifications: "Benachrichtigungen",
       pushTitle: "Push-Benachrichtigungen",
-      pushDesc: "Erhalten Sie Echtzeit-Meldungen direkt auf Ihren Desktop, wenn Ihnen Kollegen Aufgaben zuweisen oder Leads aktualisiert werden.",
+      pushDesc:
+        "Erhalten Sie Echtzeit-Meldungen direkt auf Ihren Desktop, wenn Ihnen Kollegen Aufgaben zuweisen oder Leads aktualisiert werden.",
       status: "Status:",
       active: "Aktiviert",
       inactive: "Deaktiviert",
@@ -466,5 +466,5 @@ export const translations = {
   }
 };
 
-export type Language = 'de' | 'en';
+export type Language = "de" | "en";
 export type TranslationDict = typeof translations.de;

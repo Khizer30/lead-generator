@@ -1,8 +1,7 @@
-
-import React from 'react';
-import { useDraggable } from '@dnd-kit/core';
-import { Lead, PipelineStage } from '../types';
-import { User, Linkedin, MessageSquare, Briefcase, PlusCircle, DollarSign } from 'lucide-react';
+import React from "react";
+import { useDraggable } from "@dnd-kit/core";
+import { Lead, PipelineStage } from "../types";
+import { User, Linkedin, MessageSquare, Briefcase, PlusCircle, DollarSign } from "lucide-react";
 
 interface LeadCardProps {
   lead: Lead;
@@ -16,9 +15,11 @@ const LeadCard: React.FC<LeadCardProps> = ({ lead, onClick, onAddDeal }) => {
     data: { lead }
   });
 
-  const style = transform ? {
-    transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
-  } : undefined;
+  const style = transform
+    ? {
+        transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`
+      }
+    : undefined;
 
   const isClosed = lead.pipelineStage === PipelineStage.CLOSED;
 
@@ -31,7 +32,7 @@ const LeadCard: React.FC<LeadCardProps> = ({ lead, onClick, onAddDeal }) => {
       onClick={() => onClick(lead)}
       className={`
         bg-white p-4 rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-all cursor-pointer mb-3 relative group
-        ${isDragging ? 'opacity-50 ring-2 ring-blue-500 z-50' : ''}
+        ${isDragging ? "opacity-50 ring-2 ring-blue-500 z-50" : ""}
       `}
     >
       <div className="flex justify-between items-start mb-2">
@@ -52,9 +53,9 @@ const LeadCard: React.FC<LeadCardProps> = ({ lead, onClick, onAddDeal }) => {
             </button>
           )}
           {lead.linkedinUrl && (
-            <a 
-              href={lead.linkedinUrl} 
-              target="_blank" 
+            <a
+              href={lead.linkedinUrl}
+              target="_blank"
               rel="noopener noreferrer"
               onClick={(e) => e.stopPropagation()}
               className="text-blue-600 hover:text-blue-800"
@@ -70,7 +71,7 @@ const LeadCard: React.FC<LeadCardProps> = ({ lead, onClick, onAddDeal }) => {
           <Briefcase size={12} className="mr-1.5 shrink-0" />
           <span className="truncate">{lead.currentPosition}</span>
         </div>
-        
+
         <div className="flex items-center text-xs text-gray-500">
           <User size={12} className="mr-1.5 shrink-0" />
           <span>{lead.ownerName}</span>
@@ -84,7 +85,7 @@ const LeadCard: React.FC<LeadCardProps> = ({ lead, onClick, onAddDeal }) => {
         </div>
         <div className="flex items-center">
           {isClosed && <DollarSign size={10} className="text-emerald-500 mr-1" />}
-          <span>{new Date(lead.createdAt).toLocaleDateString('de-DE')}</span>
+          <span>{new Date(lead.createdAt).toLocaleDateString("de-DE")}</span>
         </div>
       </div>
     </div>

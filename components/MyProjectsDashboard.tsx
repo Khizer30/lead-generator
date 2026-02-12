@@ -1,12 +1,8 @@
-
-import React, { useState, useEffect, useMemo } from 'react';
-import { 
-  FolderKanban, Clock, Users, ChevronRight, 
-  Briefcase, Loader2, Calendar, Target, User
-} from 'lucide-react';
-import { Project, Lead } from '../types';
-import { api } from '../services/api';
-import { translations, Language } from '../translations';
+import React, { useState, useEffect, useMemo } from "react";
+import { FolderKanban, Clock, Users, ChevronRight, Briefcase, Loader2, Calendar, Target, User } from "lucide-react";
+import { Project, Lead } from "../types";
+import { api } from "../services/api";
+import { translations, Language } from "../translations";
 
 // Define props to accept lang from App.tsx
 interface MyProjectsDashboardProps {
@@ -26,10 +22,7 @@ const MyProjectsDashboard: React.FC<MyProjectsDashboardProps> = ({ lang }) => {
   }, []);
 
   const fetchData = async () => {
-    const [projectsData, leadsData] = await Promise.all([
-      api.getProjects(),
-      api.getLeads()
-    ]);
+    const [projectsData, leadsData] = await Promise.all([api.getProjects(), api.getLeads()]);
     setProjects(projectsData);
     setLeads(leadsData);
     setLoading(false);
@@ -37,14 +30,19 @@ const MyProjectsDashboard: React.FC<MyProjectsDashboardProps> = ({ lang }) => {
 
   // Filter projects where "M. Nutzer" is a participant (owner of at least one lead) OR manager
   const myProjects = useMemo(() => {
-    const currentUser = 'M. Nutzer';
-    return projects.filter(project => {
-      return project.managerName === currentUser || leads.some(lead => lead.projectId === project.id && lead.ownerName === currentUser);
-    }).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    const currentUser = "M. Nutzer";
+    return projects
+      .filter((project) => {
+        return (
+          project.managerName === currentUser ||
+          leads.some((lead) => lead.projectId === project.id && lead.ownerName === currentUser)
+        );
+      })
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }, [projects, leads]);
 
   const getLeadsForProject = (projectId: string) => {
-    return leads.filter(l => l.projectId === projectId && l.ownerName === 'M. Nutzer');
+    return leads.filter((l) => l.projectId === projectId && l.ownerName === "M. Nutzer");
   };
 
   return (
@@ -69,24 +67,29 @@ const MyProjectsDashboard: React.FC<MyProjectsDashboardProps> = ({ lang }) => {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {myProjects.map(project => {
+            {myProjects.map((project) => {
               const projectLeads = getLeadsForProject(project.id);
               return (
-                <div key={project.id} className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all flex flex-col group">
+                <div
+                  key={project.id}
+                  className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all flex flex-col group"
+                >
                   <div className="flex justify-between items-start mb-4">
                     <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl group-hover:bg-indigo-600 group-hover:text-white transition-colors">
                       <Briefcase size={22} />
                     </div>
                     <div className="flex items-center gap-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
                       <Calendar size={12} />
-                      {new Date(project.createdAt).toLocaleDateString(lang === 'de' ? 'de-DE' : 'en-US')}
+                      {new Date(project.createdAt).toLocaleDateString(lang === "de" ? "de-DE" : "en-US")}
                     </div>
                   </div>
 
                   <h3 className="text-xl font-bold text-gray-900 mb-2 truncate">{project.title}</h3>
                   <div className="flex items-center gap-2 mb-4 text-xs font-bold text-indigo-600">
                     <User size={14} />
-                    <span>{t.myProjects.manager}: {project.managerName}</span>
+                    <span>
+                      {t.myProjects.manager}: {project.managerName}
+                    </span>
                   </div>
                   <p className="text-sm text-gray-500 line-clamp-2 mb-6 min-h-[40px]">
                     {project.description || t.myProjects.noDesc}
@@ -104,11 +107,15 @@ const MyProjectsDashboard: React.FC<MyProjectsDashboardProps> = ({ lang }) => {
                     </div>
 
                     <div className="space-y-2">
-                      {projectLeads.slice(0, 3).map(lead => (
-                        <div key={lead.id} className="flex items-center justify-between p-2.5 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                      {projectLeads.slice(0, 3).map((lead) => (
+                        <div
+                          key={lead.id}
+                          className="flex items-center justify-between p-2.5 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                        >
                           <div className="flex items-center gap-2 min-w-0">
                             <div className="w-6 h-6 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 text-[8px] font-bold shrink-0">
-                              {lead.firstName[0]}{lead.lastName[0]}
+                              {lead.firstName[0]}
+                              {lead.lastName[0]}
                             </div>
                             <span className="text-xs font-semibold text-gray-800 truncate">
                               {lead.firstName} {lead.lastName}

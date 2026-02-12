@@ -1,7 +1,6 @@
-
-import React, { useState, useMemo } from 'react';
-import { X, Calendar, Download, ChevronRight } from 'lucide-react';
-import { translations, Language } from '../translations';
+import React, { useState, useMemo } from "react";
+import { X, Calendar, Download, ChevronRight } from "lucide-react";
+import { translations, Language } from "../translations";
 
 interface ExportDealsModalProps {
   lang: Language;
@@ -12,8 +11,8 @@ interface ExportDealsModalProps {
 const ExportDealsModal: React.FC<ExportDealsModalProps> = ({ lang, onClose, onExport }) => {
   const t = useMemo(() => translations[lang], [lang]);
 
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,7 +41,9 @@ const ExportDealsModal: React.FC<ExportDealsModalProps> = ({ lang, onClose, onEx
         <form onSubmit={handleSubmit} className="p-8 space-y-6">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">{t.analytics.filters.dateFrom}</label>
+              <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">
+                {t.analytics.filters.dateFrom}
+              </label>
               <div className="relative">
                 <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300" size={14} />
                 <input
@@ -50,12 +51,14 @@ const ExportDealsModal: React.FC<ExportDealsModalProps> = ({ lang, onClose, onEx
                   type="date"
                   className="w-full pl-9 pr-4 py-3 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-blue-500 text-[10px] font-bold text-gray-600"
                   value={dateFrom}
-                  onChange={e => setDateFrom(e.target.value)}
+                  onChange={(e) => setDateFrom(e.target.value)}
                 />
               </div>
             </div>
             <div>
-              <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">{t.analytics.filters.dateTo}</label>
+              <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">
+                {t.analytics.filters.dateTo}
+              </label>
               <div className="relative">
                 <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300" size={14} />
                 <input
@@ -63,7 +66,7 @@ const ExportDealsModal: React.FC<ExportDealsModalProps> = ({ lang, onClose, onEx
                   type="date"
                   className="w-full pl-9 pr-4 py-3 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-blue-500 text-[10px] font-bold text-gray-600"
                   value={dateTo}
-                  onChange={e => setDateTo(e.target.value)}
+                  onChange={(e) => setDateTo(e.target.value)}
                 />
               </div>
             </div>

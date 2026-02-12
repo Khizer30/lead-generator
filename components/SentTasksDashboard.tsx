@@ -1,9 +1,8 @@
-
-import React, { useState, useEffect, useMemo } from 'react';
-import { Send, Clock, User, ClipboardList, Loader2, ArrowRight } from 'lucide-react';
-import { Task, Owner } from '../types';
-import { api } from '../services/api';
-import { translations, Language } from '../translations';
+import React, { useState, useEffect, useMemo } from "react";
+import { Send, Clock, User, ClipboardList, Loader2, ArrowRight } from "lucide-react";
+import { Task, Owner } from "../types";
+import { api } from "../services/api";
+import { translations, Language } from "../translations";
 
 // Define props to accept lang from App.tsx
 interface SentTasksDashboardProps {
@@ -23,21 +22,18 @@ const SentTasksDashboard: React.FC<SentTasksDashboardProps> = ({ lang }) => {
   }, []);
 
   const fetchData = async () => {
-    const [tasks, ownersData] = await Promise.all([
-      api.getTasks(),
-      api.getOwners()
-    ]);
+    const [tasks, ownersData] = await Promise.all([api.getTasks(), api.getOwners()]);
     // Filter tasks sent by "M. Nutzer" (Mock current user)
-    const filtered = tasks.filter(t => t.senderName === 'M. Nutzer').sort((a, b) => 
-      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    );
+    const filtered = tasks
+      .filter((t) => t.senderName === "M. Nutzer")
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     setSentTasks(filtered);
     setOwners(ownersData);
     setLoading(false);
   };
 
   const getOwnerName = (id: string) => {
-    return owners.find(o => o.id === id)?.name || 'Unbekannt';
+    return owners.find((o) => o.id === id)?.name || "Unbekannt";
   };
 
   return (
@@ -61,14 +57,19 @@ const SentTasksDashboard: React.FC<SentTasksDashboardProps> = ({ lang }) => {
             <p className="text-gray-400 text-sm max-w-[240px]">{t.sentTasks.noTasksDesc}</p>
           </div>
         ) : (
-          sentTasks.map(task => (
-            <div key={task.id} className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:border-blue-200 transition-all flex items-start gap-4">
+          sentTasks.map((task) => (
+            <div
+              key={task.id}
+              className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:border-blue-200 transition-all flex items-start gap-4"
+            >
               <div className="w-10 h-10 shrink-0 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600">
                 <ClipboardList size={20} />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-blue-500 bg-blue-50 px-2 py-0.5 rounded">{t.sentTasks.delegatedTo}</span>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-blue-500 bg-blue-50 px-2 py-0.5 rounded">
+                    {t.sentTasks.delegatedTo}
+                  </span>
                   <div className="flex items-center gap-1.5 text-sm font-bold text-gray-900">
                     <User size={14} className="text-gray-400" />
                     {getOwnerName(task.ownerId)}
@@ -78,15 +79,15 @@ const SentTasksDashboard: React.FC<SentTasksDashboardProps> = ({ lang }) => {
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
                   <div className="flex items-center gap-1">
                     <Clock size={12} />
-                    {new Date(task.createdAt).toLocaleString(lang === 'de' ? 'de-DE' : 'en-US')}
+                    {new Date(task.createdAt).toLocaleString(lang === "de" ? "de-DE" : "en-US")}
                   </div>
                   {task.deadline && (
                     <div className="flex items-center gap-1 text-blue-500">
                       <Clock size={12} />
-                      {t.todos.due} {new Date(task.deadline).toLocaleDateString(lang === 'de' ? 'de-DE' : 'en-US')}
+                      {t.todos.due} {new Date(task.deadline).toLocaleDateString(lang === "de" ? "de-DE" : "en-US")}
                     </div>
                   )}
-                  <div className={`flex items-center gap-1 ${task.isRead ? 'text-emerald-500' : 'text-amber-500'}`}>
+                  <div className={`flex items-center gap-1 ${task.isRead ? "text-emerald-500" : "text-amber-500"}`}>
                     {task.isRead ? t.sentTasks.read : t.sentTasks.pending}
                   </div>
                 </div>
