@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useMemo } from "react";
 import { Send, Clock, User, ClipboardList, Loader2, ArrowRight } from "lucide-react";
-import { Task, Owner } from "../types";
+import React, { useState, useEffect, useMemo } from "react";
+
 import { api } from "../services/api";
 import { translations, Language } from "../translations";
+import { Task, Owner } from "../types";
 
 // Define props to accept lang from App.tsx
 interface SentTasksDashboardProps {

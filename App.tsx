@@ -1,36 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { DndContext, DragEndEvent, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
-import {
-  Lead,
-  PipelineStage,
-  SortField,
-  SortOrder,
-  LeadFile,
-  Owner,
-  Task,
-  Todo,
-  Project,
-  UserSettings,
-  Deal
-} from "./types";
-import { api } from "./services/api";
-import KanbanBoard from "./components/KanbanBoard";
-import LeadDetailDrawer from "./components/LeadDetailDrawer";
-import LeadModal from "./components/LeadModal";
-import ProjectModal from "./components/ProjectModal";
-import ShareModal from "./components/ShareModal";
-import TrashBin from "./components/TrashBin";
-import TaskModal from "./components/TaskModal";
-import DealModal from "./components/DealModal";
-import TodoDashboard from "./components/TodoDashboard";
-import SentTasksDashboard from "./components/SentTasksDashboard";
-import MyProjectsDashboard from "./components/MyProjectsDashboard";
-import SettingsDashboard from "./components/SettingsDashboard";
-import EmailSettingsDashboard from "./components/EmailSettingsDashboard";
-import UserManagementDashboard from "./components/UserManagementDashboard";
-import AnalyticsDashboard from "./components/AnalyticsDashboard";
-import TrashModal from "./components/TrashModal";
-import { translations, Language } from "./translations";
 import {
   Plus,
   Search,
@@ -54,7 +22,40 @@ import {
   ShieldCheck,
   FolderPlus
 } from "lucide-react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import * as XLSX from "xlsx";
+
+import AnalyticsDashboard from "./components/AnalyticsDashboard";
+import DealModal from "./components/DealModal";
+import EmailSettingsDashboard from "./components/EmailSettingsDashboard";
+import KanbanBoard from "./components/KanbanBoard";
+import LeadDetailDrawer from "./components/LeadDetailDrawer";
+import LeadModal from "./components/LeadModal";
+import MyProjectsDashboard from "./components/MyProjectsDashboard";
+import ProjectModal from "./components/ProjectModal";
+import ShareModal from "./components/ShareModal";
+import TrashBin from "./components/TrashBin";
+import TaskModal from "./components/TaskModal";
+import TodoDashboard from "./components/TodoDashboard";
+import SentTasksDashboard from "./components/SentTasksDashboard";
+import SettingsDashboard from "./components/SettingsDashboard";
+import TrashModal from "./components/TrashModal";
+import UserManagementDashboard from "./components/UserManagementDashboard";
+import { api } from "./services/api";
+import { translations, Language } from "./translations";
+import {
+  Lead,
+  PipelineStage,
+  SortField,
+  SortOrder,
+  LeadFile,
+  Owner,
+  Task,
+  Todo,
+  Project,
+  UserSettings,
+  Deal
+} from "./types";
 
 type ViewType =
   | "pipeline"

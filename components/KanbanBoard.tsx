@@ -1,9 +1,11 @@
-import React, { useMemo } from "react";
 import { useDroppable } from "@dnd-kit/core";
-import { Lead, PipelineStage } from "../types";
+import React, { useMemo } from "react";
+
 import { STAGES } from "../constants";
-import LeadCard from "./LeadCard";
 import { translations, Language } from "../translations";
+import { Lead, PipelineStage } from "../types";
+
+import LeadCard from "./LeadCard";
 
 interface KanbanBoardProps {
   leads: Lead[];

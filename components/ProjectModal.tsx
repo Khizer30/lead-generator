@@ -1,7 +1,8 @@
-import React, { useState, useMemo } from "react";
 import { X, Save, FolderPlus, Search, Check, User } from "lucide-react";
-import { Lead, Project, Owner } from "../types";
+import React, { useState, useMemo } from "react";
+
 import { translations, Language } from "../translations";
+import { Lead, Project, Owner } from "../types";
 
 interface ProjectModalProps {
   leads: Lead[];

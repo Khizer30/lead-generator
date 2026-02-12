@@ -1,4 +1,3 @@
-import React, { useState, useEffect, useMemo } from "react";
 import {
   Settings,
   Bell,
@@ -13,9 +12,11 @@ import {
   Save,
   ChevronRight
 } from "lucide-react";
-import { UserSettings } from "../types";
+import React, { useState, useEffect, useMemo } from "react";
+
 import { api } from "../services/api";
 import { translations, Language } from "../translations";
+import { UserSettings } from "../types";
 
 interface SettingsDashboardProps {
   lang: Language;

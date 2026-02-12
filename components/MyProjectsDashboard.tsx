@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useMemo } from "react";
 import { FolderKanban, Clock, Users, ChevronRight, Briefcase, Loader2, Calendar, Target, User } from "lucide-react";
-import { Project, Lead } from "../types";
+import React, { useState, useEffect, useMemo } from "react";
+
 import { api } from "../services/api";
 import { translations, Language } from "../translations";
+import { Project, Lead } from "../types";
 
 // Define props to accept lang from App.tsx
 interface MyProjectsDashboardProps {

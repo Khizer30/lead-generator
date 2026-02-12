@@ -1,4 +1,3 @@
-import React, { useState, useEffect, useMemo } from "react";
 import {
   Mail,
   Settings,
@@ -12,9 +11,11 @@ import {
   Database,
   Globe
 } from "lucide-react";
-import { EmailSettings, EmailProvider } from "../types";
+import React, { useState, useEffect, useMemo } from "react";
+
 import { api } from "../services/api";
 import { translations, Language } from "../translations";
+import { EmailSettings, EmailProvider } from "../types";
 
 interface EmailSettingsDashboardProps {
   lang: Language;

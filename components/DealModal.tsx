@@ -1,7 +1,8 @@
-import React, { useState, useMemo } from "react";
 import { X, CheckCircle, DollarSign, Calendar, Type, FileText, ChevronRight, FolderKanban } from "lucide-react";
-import { Lead, Deal, DealType, Project } from "../types";
+import React, { useState, useMemo } from "react";
+
 import { translations, Language } from "../translations";
+import { Lead, Deal, DealType, Project } from "../types";
 
 interface DealModalProps {
   lead: Lead;

@@ -1,3 +1,6 @@
+import { GoogleGenAI, Type } from "@google/genai";
+import { v4 as uuidv4 } from "uuid";
+
 import {
   Lead,
   PipelineStage,
@@ -14,8 +17,6 @@ import {
   EmailProvider,
   UserStatus
 } from "../types";
-import { v4 as uuidv4 } from "uuid";
-import { GoogleGenAI, Type } from "@google/genai";
 
 // Simulated Latency to make it feel like a real backend
 const SIMULATED_LATENCY = 300;

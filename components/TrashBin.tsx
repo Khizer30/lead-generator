@@ -1,6 +1,6 @@
-import React from "react";
 import { useDroppable } from "@dnd-kit/core";
 import { Trash2 } from "lucide-react";
+import React from "react";
 
 interface TrashBinProps {
   onClick: () => void;

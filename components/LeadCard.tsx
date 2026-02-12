@@ -1,7 +1,8 @@
-import React from "react";
 import { useDraggable } from "@dnd-kit/core";
-import { Lead, PipelineStage } from "../types";
 import { User, Linkedin, MessageSquare, Briefcase, PlusCircle, DollarSign } from "lucide-react";
+import React from "react";
+
+import { Lead, PipelineStage } from "../types";
 
 interface LeadCardProps {
   lead: Lead;

@@ -1,7 +1,8 @@
-import React, { useMemo } from "react";
 import { X, Trash2, RotateCcw, User, Briefcase, Building } from "lucide-react";
-import { Lead } from "../types";
+import React, { useMemo } from "react";
+
 import { translations, Language } from "../translations";
+import { Lead } from "../types";
 
 interface TrashModalProps {
   leads: Lead[];

@@ -1,9 +1,10 @@
-import React, { useState, useMemo } from "react";
 import { X, Linkedin, Loader2, ChevronRight, Check, User, Building, Calendar, Link as LinkIcon } from "lucide-react";
-import { Lead, PipelineStage, EnrichmentData, Owner } from "../types";
+import React, { useState, useMemo } from "react";
+
 import { STAGES } from "../constants";
 import { api } from "../services/api";
 import { translations, Language } from "../translations";
+import { Lead, PipelineStage, EnrichmentData, Owner } from "../types";
 
 interface LeadModalProps {
   onClose: () => void;

@@ -1,5 +1,3 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
-import { Lead, Comment, PipelineStage, LeadFile, Deal, Project, Todo } from "../types";
 import {
   X,
   Phone,
@@ -32,9 +30,12 @@ import {
   Circle,
   Clock
 } from "lucide-react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
+
 import { STAGE_COLORS, STAGES } from "../constants";
 import { api } from "../services/api";
 import { translations, Language } from "../translations";
+import { Lead, Comment, PipelineStage, LeadFile, Deal, Project, Todo } from "../types";
 
 interface LeadDetailDrawerProps {
   lead: Lead | null;
@@ -493,7 +494,12 @@ const LeadDetailDrawer: React.FC<LeadDetailDrawerProps> = ({
                         />
                       ) : (
                         lead.linkedinUrl && (
-                          <a href={lead.linkedinUrl} target="_blank" className="text-xs text-blue-600 hover:underline">
+                          <a
+                            href={lead.linkedinUrl}
+                            target="_blank"
+                            className="text-xs text-blue-600 hover:underline"
+                            rel="noreferrer"
+                          >
                             Profil
                           </a>
                         )
@@ -510,7 +516,12 @@ const LeadDetailDrawer: React.FC<LeadDetailDrawerProps> = ({
                         />
                       ) : (
                         lead.facebookUrl && (
-                          <a href={lead.facebookUrl} target="_blank" className="text-xs text-blue-600 hover:underline">
+                          <a
+                            href={lead.facebookUrl}
+                            target="_blank"
+                            className="text-xs text-blue-600 hover:underline"
+                            rel="noreferrer"
+                          >
                             Profil
                           </a>
                         )
@@ -527,7 +538,12 @@ const LeadDetailDrawer: React.FC<LeadDetailDrawerProps> = ({
                         />
                       ) : (
                         lead.instagramUrl && (
-                          <a href={lead.instagramUrl} target="_blank" className="text-xs text-blue-600 hover:underline">
+                          <a
+                            href={lead.instagramUrl}
+                            target="_blank"
+                            className="text-xs text-blue-600 hover:underline"
+                            rel="noreferrer"
+                          >
                             Profil
                           </a>
                         )
@@ -544,7 +560,12 @@ const LeadDetailDrawer: React.FC<LeadDetailDrawerProps> = ({
                         />
                       ) : (
                         lead.tiktokUrl && (
-                          <a href={lead.tiktokUrl} target="_blank" className="text-xs text-blue-600 hover:underline">
+                          <a
+                            href={lead.tiktokUrl}
+                            target="_blank"
+                            className="text-xs text-blue-600 hover:underline"
+                            rel="noreferrer"
+                          >
                             Profil
                           </a>
                         )
@@ -561,7 +582,12 @@ const LeadDetailDrawer: React.FC<LeadDetailDrawerProps> = ({
                         />
                       ) : (
                         lead.twitterUrl && (
-                          <a href={lead.twitterUrl} target="_blank" className="text-xs text-blue-600 hover:underline">
+                          <a
+                            href={lead.twitterUrl}
+                            target="_blank"
+                            className="text-xs text-blue-600 hover:underline"
+                            rel="noreferrer"
+                          >
                             Profil
                           </a>
                         )

@@ -1,4 +1,3 @@
-import React, { useState, useMemo } from "react";
 import {
   BarChart3,
   TrendingUp,
@@ -20,11 +19,14 @@ import {
   Clock,
   CheckCircle2
 } from "lucide-react";
-import { Deal, Lead, Owner, DealType, Project, PipelineStage } from "../types";
+import React, { useState, useMemo } from "react";
+import * as XLSX from "xlsx";
+
 import { STAGES, STAGE_COLORS } from "../constants";
 import { translations, Language } from "../translations";
+import { Deal, Lead, Owner, DealType, Project, PipelineStage } from "../types";
+
 import ExportDealsModal from "./ExportDealsModal";
-import * as XLSX from "xlsx";
 
 interface AnalyticsDashboardProps {
   deals: Deal[];
