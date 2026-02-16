@@ -50,12 +50,52 @@ import {
   Share2,
   FolderKanban,
   PieChart,
-  Mail,
   ShieldCheck,
-  FolderPlus
+  FolderPlus,
+  LogOut
 } from "lucide-react";
+<<<<<<< Updated upstream
 import * as XLSX from "xlsx";
 
+=======
+import React, { useState, useEffect, useMemo, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
+import * as XLSX from "xlsx";
+
+import AnalyticsDashboard from "./components/AnalyticsDashboard";
+import DealModal from "./components/DealModal";
+import KanbanBoard from "./components/KanbanBoard";
+import LeadDetailDrawer from "./components/LeadDetailDrawer";
+import LeadModal from "./components/LeadModal";
+import MyProjectsDashboard from "./components/MyProjectsDashboard";
+import ProjectModal from "./components/ProjectModal";
+import ShareModal from "./components/ShareModal";
+import TrashBin from "./components/TrashBin";
+import TaskModal from "./components/TaskModal";
+import TodoDashboard from "./components/TodoDashboard";
+import SentTasksDashboard from "./components/SentTasksDashboard";
+import SettingsDashboard from "./components/SettingsDashboard";
+import TrashModal from "./components/TrashModal";
+import UserManagementDashboard from "./components/UserManagementDashboard";
+import { api } from "./services/api";
+import { useAppDispatch } from "./store/hooks";
+import { signOutLocal } from "./store/slices/authSlice";
+import { translations, Language } from "./translations";
+import {
+  Lead,
+  PipelineStage,
+  SortField,
+  SortOrder,
+  LeadFile,
+  Owner,
+  Task,
+  Todo,
+  Project,
+  UserSettings,
+  Deal
+} from "./types";
+
+>>>>>>> Stashed changes
 type ViewType =
   | "pipeline"
   | "analytics"
@@ -63,10 +103,11 @@ type ViewType =
   | "sent_tasks"
   | "my_projects"
   | "settings"
-  | "email_settings"
   | "user_mgmt";
 
 const App: React.FC = () => {
+  const dispatch = useAppDispatch();
+  const navigate = useNavigate();
   const [activeView, setActiveView] = useState<ViewType>("pipeline");
   const [leads, setLeads] = useState<Lead[]>([]);
   const [owners, setOwners] = useState<Owner[]>([]);
@@ -308,7 +349,6 @@ const App: React.FC = () => {
     if (activeView === "sent_tasks") return <SentTasksDashboard lang={currentLang} />;
     if (activeView === "my_projects") return <MyProjectsDashboard lang={currentLang} />;
     if (activeView === "settings") return <SettingsDashboard lang={currentLang} onSettingsUpdate={fetchData} />;
-    if (activeView === "email_settings") return <EmailSettingsDashboard lang={currentLang} />;
     if (activeView === "user_mgmt") return <UserManagementDashboard lang={currentLang} />;
 
     return (
@@ -380,14 +420,6 @@ const App: React.FC = () => {
                   className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg font-medium transition-all ${activeView === "user_mgmt" ? "bg-blue-50 text-blue-700" : "text-gray-500 hover:bg-gray-50"}`}
                 >
                   <ShieldCheck size={18} /> <span className="text-xs font-bold">{t.userMgmt.title}</span>
-                </button>
-                <button
-                  onClick={() => setActiveView("email_settings")}
-                  className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg font-medium transition-all ${activeView === "email_settings" ? "bg-blue-50 text-blue-700" : "text-gray-500 hover:bg-gray-50"}`}
-                >
-                  {/* Fixed: replaced 'lang' with 'currentLang' to fix find name 'lang' error */}
-                  <Mail size={18} />{" "}
-                  <span className="text-xs font-bold">{currentLang === "de" ? "E-Mail Konfig" : "Email Config"}</span>
                 </button>
               </div>
             </div>
@@ -511,6 +543,18 @@ const App: React.FC = () => {
                 className="bg-blue-600 text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-lg shadow-blue-100 hover:bg-blue-700 transition-all flex items-center"
               >
                 <Plus size={18} className="mr-2" /> {t.header.captureLead}
+              </button>
+
+              <button
+                onClick={() => {
+                  dispatch(signOutLocal());
+                  navigate("/sign-in?signedOut=1", { replace: true });
+                }}
+                className="bg-white text-gray-700 border border-gray-200 px-3 py-2.5 rounded-xl font-bold text-sm hover:bg-gray-50 transition-all flex items-center shadow-sm"
+                title="Sign out"
+              >
+                <LogOut size={16} className="mr-2 text-gray-500" />
+                Sign out
               </button>
             </div>
           </header>

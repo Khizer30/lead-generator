@@ -12,28 +12,46 @@
     "start": "vite preview"
   },
   "dependencies": {
-    "@google/genai": "^1.38.0",
-    "react-dom": "^19.2.3",
-    "react": "^19.2.3",
-    "lucide-react": "^0.562.0",
-    "uuid": "^13.0.0",
     "@dnd-kit/core": "^6.3.1",
-    "xlsx": "0.18.5"
+    "@google/genai": "^1.38.0",
+    "@reduxjs/toolkit": "^2.11.2",
+    "formik": "^2.4.9",
+    "lucide-react": "^0.562.0",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "react-redux": "^9.2.0",
+    "react-router-dom": "^7.13.0",
+    "uuid": "^13.0.0",
+    "xlsx": "0.18.5",
+    "yup": "^1.7.1"
   },
   "devDependencies": {
+<<<<<<< Updated upstream
     "@eslint/js": "^9.33.0",
     "eslint": "^9.33.0",
     "eslint-config-prettier": "^10.1.8",
+=======
+    "@eslint/js": "^9.36.0",
+    "@types/node": "^22.14.0",
+    "@vitejs/plugin-basic-ssl": "^2.1.4",
+    "@vitejs/plugin-react": "^5.0.0",
+    "eslint": "^9.36.0",
+    "eslint-config-prettier": "^9.1.0",
+>>>>>>> Stashed changes
     "eslint-plugin-import": "^2.32.0",
     "eslint-plugin-prettier": "^5.5.5",
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^5.2.0",
+<<<<<<< Updated upstream
     "eslint-plugin-react-refresh": "^0.4.20",
     "globals": "^16.3.0",
+=======
+    "eslint-plugin-react-refresh": "^0.4.22",
+    "globals": "^16.4.0",
+>>>>>>> Stashed changes
     "prettier": "^3.8.1",
-    "@types/node": "^22.14.0",
-    "@vitejs/plugin-react": "^5.0.0",
     "typescript": "~5.8.2",
+    "typescript-eslint": "^8.45.0",
     "vite": "^6.2.0"
   }
 }
