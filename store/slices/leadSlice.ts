@@ -17,6 +17,7 @@ export type LeadRecord = {
   socialLinks?: Record<string, string>;
   status: LeadStatus;
   projectId?: string;
+  commentCount?: number | string;
   createdAt?: string;
   updatedAt?: string;
 };

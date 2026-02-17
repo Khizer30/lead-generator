@@ -335,7 +335,6 @@ const App: React.FC = () => {
   }, [users]);
 
   const projectOptions = useMemo(() => {
-    if (!projectRecords.length) return projects;
     return projectRecords.map((project) => ({
       id: project.id,
       title: project.title,
@@ -344,7 +343,16 @@ const App: React.FC = () => {
         project.projectManagerName || users.find((user) => user.id === project.projectManagerId)?.name || "",
       createdAt: project.createdAt || ""
     }));
-  }, [projectRecords, projects, users]);
+  }, [projectRecords, users]);
+
+  useEffect(() => {
+    if (projectFilter === "All") return;
+    const selectedProject = projectOptions.find((project) => project.id === projectFilter);
+    console.log("[Dashboard] selected project filter", {
+      projectId: projectFilter,
+      projectTitle: selectedProject?.title || null
+    });
+  }, [projectFilter, projectOptions]);
 
   const trashedLeadsCount = useMemo(() => leads.filter((l) => l.pipelineStage === PipelineStage.TRASH).length, [leads]);
 
