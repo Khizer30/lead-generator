@@ -16,6 +16,7 @@ import { useAppDispatch, useAppSelector } from "../store/hooks";
 import { createTask, getTasks, updateTask } from "../store/actions/taskActions";
 import { getLeads } from "../store/actions/leadActions";
 import { getUsers } from "../store/actions/userActions";
+import { pushLocalNotification } from "../store/slices/notificationSlice";
 
 interface TodoDashboardProps {
   lang: Language;
@@ -103,12 +104,29 @@ const TodoDashboard: React.FC<TodoDashboardProps> = ({ lang }) => {
   };
 
   const handleToggleTodo = async (taskId: string, completed: boolean) => {
-    await dispatch(
+    const nextCompleted = !completed;
+    const targetTask = tasks.find((task) => task.id === taskId);
+    const result = await dispatch(
       updateTask({
         taskId,
-        data: { completed: !completed }
+        data: { completed: nextCompleted }
       })
     );
+
+    if (!updateTask.fulfilled.match(result)) {
+      console.error("[TodoDashboard] update task rejected", result);
+      return;
+    }
+
+    if (nextCompleted) {
+      const taskName = targetTask?.description || (lang === "de" ? "Unbenannte Aufgabe" : "Untitled task");
+      dispatch(
+        pushLocalNotification({
+          type: "TASK_COMPLETED",
+          message: lang === "de" ? `Aufgabe erledigt: ${taskName}` : `Task completed: ${taskName}`
+        })
+      );
+    }
   };
 
   const getLeadName = (id?: string) => {

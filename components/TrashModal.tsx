@@ -8,10 +8,9 @@ interface TrashModalProps {
   lang: Language;
   onClose: () => void;
   onRestore: (id: string) => void;
-  onPermanentDelete: (id: string) => void;
 }
 
-const TrashModal: React.FC<TrashModalProps> = ({ leads, lang, onClose, onRestore, onPermanentDelete }) => {
+const TrashModal: React.FC<TrashModalProps> = ({ leads, lang, onClose, onRestore }) => {
   const t = useMemo(() => translations[lang], [lang]);
 
   return (
@@ -72,15 +71,6 @@ const TrashModal: React.FC<TrashModalProps> = ({ leads, lang, onClose, onRestore
                     title={t.trash.restore}
                   >
                     <RotateCcw size={16} />
-                  </button>
-                  <button
-                    onClick={() => {
-                      if (window.confirm(t.trash.confirmPermanent)) onPermanentDelete(lead.id);
-                    }}
-                    className="p-2 bg-white text-red-600 hover:bg-red-50 rounded-xl border border-red-100 shadow-sm transition-all"
-                    title={t.trash.permanentDelete}
-                  >
-                    <Trash2 size={16} />
                   </button>
                 </div>
               </div>

@@ -22,7 +22,7 @@ const LeadModal: React.FC<LeadModalProps> = ({ onClose, onSave, owners, lang }) 
   const isDe = lang === "de";
   const lettersOnlyPattern = /^[\p{L}\s'-]+$/u;
   const noDigitsPattern = /^\D+$/;
-  const noEmojiOrSymbolsPattern = /^[\p{L}\p{N}\s'-]+$/u;
+  const companyNamePattern = /^[\p{L}\p{N}\s]+$/u;
   const isValidLinkedInUrl = (value?: string) => {
     if (!value) return true;
     try {
@@ -54,10 +54,14 @@ const LeadModal: React.FC<LeadModalProps> = ({ onClose, onSave, owners, lang }) 
           .matches(lettersOnlyPattern, isDe ? "Position enthält ungültige Zeichen" : "Position contains invalid characters"),
         company: Yup.string()
           .trim()
-          .test("company-chars", isDe ? "Firma enthält ungültige Zeichen" : "Company contains invalid characters", (value) => {
+          .test(
+            "company-chars",
+            isDe ? "Firma darf nur Buchstaben, Zahlen und Leerzeichen enthalten" : "Company can only contain letters, numbers, and spaces",
+            (value) => {
             if (!value) return true;
-            return noEmojiOrSymbolsPattern.test(value);
-          }),
+            return companyNamePattern.test(value);
+          }
+          ),
         ownerName: Yup.string().trim().required(isDe ? "Betreuer ist erforderlich" : "Owner is required"),
         email: Yup.string()
           .transform((value) => (typeof value === "string" ? value.trim() : value))
@@ -87,7 +91,7 @@ const LeadModal: React.FC<LeadModalProps> = ({ onClose, onSave, owners, lang }) 
           return !Number.isNaN(new Date(value).getTime());
         })
       }),
-    [isDe]
+    [companyNamePattern, isDe]
   );
 
   const formik = useFormik<Partial<Lead>>({

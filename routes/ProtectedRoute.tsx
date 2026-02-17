@@ -13,15 +13,15 @@ const ProtectedRoute: React.FC = () => {
     dispatch(bootstrapAuth());
   }, [bootstrapStatus, dispatch]);
 
+  if (isAuthenticated) {
+    return <Outlet />;
+  }
+
   if (bootstrapStatus === "loading" || bootstrapStatus === "idle") {
     return <div className="min-h-screen bg-gray-50" />;
   }
 
-  if (!isAuthenticated) {
-    return <Navigate to="/sign-in" replace />;
-  }
-
-  return <Outlet />;
+  return <Navigate to="/login" replace />;
 };
 
 export default ProtectedRoute;

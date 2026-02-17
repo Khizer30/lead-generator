@@ -38,7 +38,7 @@ type AuthState = {
 
 const initialState: AuthState = {
   user: persistedUser,
-  isAuthenticated: false,
+  isAuthenticated: Boolean(persistedUser),
   bootstrapStatus: "idle",
   signInStatus: "idle",
   signUpStatus: "idle",
