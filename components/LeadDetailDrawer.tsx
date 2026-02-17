@@ -40,6 +40,7 @@ import { translations, Language } from "../translations";
 import ConfirmDeleteModal from "./ConfirmDeleteModal";
 import { useAppDispatch } from "../store/hooks";
 import { updateTask } from "../store/actions/taskActions";
+import { pushLocalNotification } from "../store/slices/notificationSlice";
 
 interface LeadDetailDrawerProps {
   lead: Lead | null;
@@ -97,7 +98,7 @@ const LeadDetailDrawer: React.FC<LeadDetailDrawerProps> = ({
 
   const lettersOnlyPattern = /^[\p{L}\s'-]+$/u;
   const noDigitsPattern = /^\D+$/;
-  const noEmojiOrSymbolsPattern = /^[\p{L}\p{N}\s'-]+$/u;
+  const companyNamePattern = /^[\p{L}\p{N}\s]+$/u;
   const isValidLinkedInUrl = (value?: string) => {
     if (!value) return true;
     try {
@@ -129,10 +130,14 @@ const LeadDetailDrawer: React.FC<LeadDetailDrawerProps> = ({
           .matches(lettersOnlyPattern, lang === "de" ? "Position enthält ungültige Zeichen" : "Position contains invalid characters"),
         company: Yup.string()
           .trim()
-          .test("company-chars", lang === "de" ? "Firma enthält ungültige Zeichen" : "Company contains invalid characters", (value) => {
+          .test(
+            "company-chars",
+            lang === "de" ? "Firma darf nur Buchstaben, Zahlen und Leerzeichen enthalten" : "Company can only contain letters, numbers, and spaces",
+            (value) => {
             if (!value) return true;
-            return noEmojiOrSymbolsPattern.test(value);
-          }),
+            return companyNamePattern.test(value);
+          }
+          ),
         ownerName: Yup.string().trim().required(lang === "de" ? "Betreuer ist erforderlich" : "Owner is required"),
         email: Yup.string()
           .transform((value) => (typeof value === "string" ? value.trim() : value))
@@ -184,7 +189,7 @@ const LeadDetailDrawer: React.FC<LeadDetailDrawerProps> = ({
             return Yup.string().url().isValidSync(normalized);
           })
       }),
-    [lang, lettersOnlyPattern, noDigitsPattern, noEmojiOrSymbolsPattern]
+    [companyNamePattern, lang, lettersOnlyPattern, noDigitsPattern]
   );
 
   const formik = useFormik<Lead>({
@@ -282,6 +287,15 @@ const LeadDetailDrawer: React.FC<LeadDetailDrawerProps> = ({
       }
 
       console.log("[LeadDetailDrawer] update task success", result.payload.task);
+      if (nextCompleted) {
+        const taskName = targetTodo.text || (lang === "de" ? "Unbenannte Aufgabe" : "Untitled task");
+        dispatch(
+          pushLocalNotification({
+            type: "TASK_COMPLETED",
+            message: lang === "de" ? `Aufgabe erledigt: ${taskName}` : `Task completed: ${taskName}`
+          })
+        );
+      }
     } catch (error) {
       console.error("[LeadDetailDrawer] update task failed", error);
       setLeadTodos((prev) => prev.map((todo) => (todo.id === id ? { ...todo, isCompleted: targetTodo.isCompleted } : todo)));

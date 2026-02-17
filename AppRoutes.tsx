@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { BrowserRouter, Navigate, Route, Routes, useNavigate, useSearchParams } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 
 import App from "./App";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
@@ -9,6 +9,7 @@ import SignUpPage from "./pages/SignUpPage";
 import ProtectedRoute from "./routes/ProtectedRoute";
 import PublicRoute from "./routes/PublicRoute";
 import {
+  bootstrapAuth,
   forgotPassword,
   resetPassword,
   signIn,
@@ -18,6 +19,27 @@ import {
 import { getInvitationById } from "./store/actions/teamActions";
 import { useAppDispatch, useAppSelector } from "./store/hooks";
 import { clearAuthMessages } from "./store/slices/authSlice";
+
+const CatchAllRedirect: React.FC = () => {
+  const dispatch = useAppDispatch();
+  const { isAuthenticated, bootstrapStatus } = useAppSelector((state) => state.auth);
+
+  useEffect(() => {
+    if (bootstrapStatus !== "idle") return;
+    dispatch(bootstrapAuth());
+  }, [bootstrapStatus, dispatch]);
+
+  if (bootstrapStatus === "loading" || bootstrapStatus === "idle") {
+    return <div className="min-h-screen bg-gray-50" />;
+  }
+
+  return <Navigate to={isAuthenticated ? "/" : "/login"} replace />;
+};
+
+const LegacyLoginRedirect: React.FC = () => {
+  const location = useLocation();
+  return <Navigate to={{ pathname: "/login", search: location.search }} replace />;
+};
 
 const SignInRoute: React.FC = () => {
   const navigate = useNavigate();
@@ -41,7 +63,7 @@ const SignInRoute: React.FC = () => {
     if (!verifyFlag) return;
     const query = new URLSearchParams({ verified: "1" });
     if (email) query.set("email", email);
-    navigate(`/sign-in?${query.toString()}`, { replace: true });
+    navigate(`/login?${query.toString()}`, { replace: true });
   }, [email, navigate, verifyFlag]);
 
   useEffect(() => {
@@ -55,7 +77,7 @@ const SignInRoute: React.FC = () => {
     if (verifyStatus !== "succeeded") return;
     const query = new URLSearchParams({ verified: "1" });
     if (email) query.set("email", email);
-    navigate(`/sign-in?${query.toString()}`, { replace: true });
+    navigate(`/login?${query.toString()}`, { replace: true });
   }, [email, hasVerificationParams, navigate, verifyStatus]);
 
   return (
@@ -118,7 +140,7 @@ const SignUpRoute: React.FC = () => {
     if (signUpStatus !== "succeeded") return;
     const query = new URLSearchParams({ verifySent: "1" });
     if (lastSubmittedEmail) query.set("email", lastSubmittedEmail);
-    navigate(`/sign-in?${query.toString()}`, { replace: true });
+    navigate(`/login?${query.toString()}`, { replace: true });
   }, [lastSubmittedEmail, navigate, signUpStatus]);
 
   const computedSuccessMessage = verifyMessage || signUpMessage;
@@ -130,7 +152,7 @@ const SignUpRoute: React.FC = () => {
         setLastSubmittedEmail(data.email);
         dispatch(signUp(data));
       }}
-      onSwitchToSignIn={() => navigate("/sign-in")}
+      onSwitchToSignIn={() => navigate("/login")}
       isLoading={isLoading}
       errorMessage={error}
       successMessage={computedSuccessMessage}
@@ -167,7 +189,7 @@ const ForgotPasswordRoute: React.FC = () => {
         codeFromUrl={code}
         onSubmit={(data) => dispatch(resetPassword(data))}
         onBackToSignIn={() =>
-          navigate(`/sign-in${email ? `?email=${encodeURIComponent(email)}` : ""}`)
+          navigate(`/login${email ? `?email=${encodeURIComponent(email)}` : ""}`)
         }
         isLoading={resetStatus === "loading"}
         successMessage={resetStatus === "succeeded" ? resetMessage : null}
@@ -184,7 +206,7 @@ const ForgotPasswordRoute: React.FC = () => {
       }}
       onBackToSignIn={() => {
         const prefillEmail = lastForgotEmail || email;
-        navigate(`/sign-in${prefillEmail ? `?email=${encodeURIComponent(prefillEmail)}` : ""}`);
+        navigate(`/login${prefillEmail ? `?email=${encodeURIComponent(prefillEmail)}` : ""}`);
       }}
       isLoading={forgotStatus === "loading"}
       isSubmitted={forgotStatus === "succeeded"}
@@ -214,7 +236,7 @@ const ResetPasswordRoute: React.FC = () => {
       codeFromUrl={code}
       onSubmit={(data) => dispatch(resetPassword(data))}
       onBackToSignIn={() =>
-        navigate(`/sign-in${email ? `?email=${encodeURIComponent(email)}` : ""}`)
+        navigate(`/login${email ? `?email=${encodeURIComponent(email)}` : ""}`)
       }
       isLoading={resetStatus === "loading"}
       successMessage={resetStatus === "succeeded" ? resetMessage : null}
@@ -228,20 +250,27 @@ const AppRoutes: React.FC = () => {
     <BrowserRouter>
       <Routes>
         <Route element={<PublicRoute />}>
-          <Route path="/sign-in" element={<SignInRoute />} />
-          <Route path="/signin" element={<SignInRoute />} />
           <Route path="/login" element={<SignInRoute />} />
+          <Route path="/sign-in" element={<LegacyLoginRedirect />} />
+          <Route path="/signin" element={<LegacyLoginRedirect />} />
+          <Route path="/auth/login" element={<LegacyLoginRedirect />} />
+          <Route path="/auth/sign-in" element={<LegacyLoginRedirect />} />
+          <Route path="/auth/signin" element={<LegacyLoginRedirect />} />
           <Route path="/sign-up" element={<SignUpRoute />} />
           <Route path="/signup" element={<SignUpRoute />} />
+          <Route path="/auth/sign-up" element={<SignUpRoute />} />
+          <Route path="/auth/signup" element={<SignUpRoute />} />
           <Route path="/forgot-password" element={<ForgotPasswordRoute />} />
+          <Route path="/auth/forgot-password" element={<ForgotPasswordRoute />} />
           <Route path="/reset-password" element={<ResetPasswordRoute />} />
+          <Route path="/auth/reset-password" element={<ResetPasswordRoute />} />
         </Route>
 
         <Route element={<ProtectedRoute />}>
           <Route path="/" element={<App />} />
         </Route>
 
-        <Route path="*" element={<Navigate to="/sign-in" replace />} />
+        <Route path="*" element={<CatchAllRedirect />} />
       </Routes>
     </BrowserRouter>
   );

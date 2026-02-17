@@ -21,6 +21,7 @@ import UserManagementDashboard from "./components/UserManagementDashboard";
 import AnalyticsDashboard from "./components/AnalyticsDashboard";
 import TrashModal from "./components/TrashModal";
 import Toast from "./components/Toast";
+import NotificationToast from "./components/NotificationToast";
 import { translations, Language } from "./translations";
 import {
   Plus,
@@ -66,6 +67,8 @@ import {
   deleteComment as deleteCommentAction,
   updateComment as updateCommentAction
 } from "./store/actions/commentActions";
+import { startNotificationStream, stopNotificationStream } from "./store/actions/notificationActions";
+import { pushLocalNotification } from "./store/slices/notificationSlice";
 
 
 type ViewType =
@@ -101,6 +104,17 @@ const App: React.FC = () => {
     type: "info",
     message: ""
   });
+  const [notificationToastState, setNotificationToastState] = useState<{
+    open: boolean;
+    type: "success" | "error" | "info";
+    title: string;
+    message: string;
+  }>({
+    open: false,
+    type: "info",
+    title: "Notification",
+    message: ""
+  });
 
   const [closingLead, setClosingLead] = useState<Lead | null>(null);
   const [taskingOwner, setTaskingOwner] = useState<Owner | null>(null);
@@ -120,8 +134,10 @@ const App: React.FC = () => {
   const leadRecords = useAppSelector((state) => state.leads.leads);
   const leadsListStatus = useAppSelector((state) => state.leads.listStatus);
   const leadsError = useAppSelector((state) => state.leads.error);
+  const latestNotification = useAppSelector((state) => state.notifications.items[0]);
   const currentLang = useMemo(() => userSettings?.language || "de", [userSettings]);
   const t = useMemo(() => translations[currentLang], [currentLang]);
+  const lastToastNotificationIdRef = useRef<string | null>(null);
 
   const mapStatusToPipeline = (status?: string): PipelineStage => {
     if (status === "DELETED") return PipelineStage.TRASH;
@@ -206,6 +222,34 @@ const App: React.FC = () => {
       Notification.requestPermission();
     }
   }, [dispatch, fetchDeletedLeads]);
+
+  useEffect(() => {
+    dispatch(startNotificationStream());
+    return () => {
+      dispatch(stopNotificationStream());
+    };
+  }, [dispatch]);
+
+  useEffect(() => {
+    if (!latestNotification) return;
+    if (lastToastNotificationIdRef.current === latestNotification.id) return;
+    lastToastNotificationIdRef.current = latestNotification.id;
+
+    const typeLower = latestNotification.type.toLowerCase();
+    const toastType: "success" | "error" | "info" =
+      typeLower.includes("error") || typeLower.includes("failed")
+        ? "error"
+        : typeLower.includes("success") || typeLower.includes("created") || typeLower.includes("completed")
+          ? "success"
+          : "info";
+
+    setNotificationToastState({
+      open: true,
+      type: toastType,
+      title: latestNotification.type || "Notification",
+      message: latestNotification.message
+    });
+  }, [latestNotification]);
 
   useEffect(() => {
     refreshActiveLeads();
@@ -441,11 +485,15 @@ const App: React.FC = () => {
         return;
       }
       console.log("[Deal] create success", result.payload);
-      setToastState({
-        open: true,
-        type: "success",
-        message: result.payload.message || (currentLang === "de" ? "Abschluss erfolgreich erstellt." : "Deal created successfully.")
-      });
+      dispatch(
+        pushLocalNotification({
+          type: "DEAL_CREATED",
+          message:
+            currentLang === "de"
+              ? `Deal erstellt: ${dealData.name}`
+              : `Deal created: ${dealData.name}`
+        })
+      );
 
       const created = result.payload.deal;
       const mapDealTypeToLocal = (value?: string): DealType => {
@@ -585,23 +633,6 @@ const App: React.FC = () => {
       }
     },
     [dispatch, fetchDeletedLeads, refreshActiveLeads]
-  );
-
-  const handlePermanentDeleteLead = useCallback(
-    async (id: string) => {
-      try {
-        const result = await dispatch(deleteLeadAction(id));
-        if (!deleteLeadAction.fulfilled.match(result)) {
-          console.error("[Trash] permanent delete rejected", result);
-          return;
-        }
-        console.log("[Trash] permanent delete success", result.payload);
-        await fetchDeletedLeads();
-      } catch (error) {
-        console.error("[Trash] permanent delete failed", error);
-      }
-    },
-    [dispatch, fetchDeletedLeads]
   );
 
   const handleLeadClick = useCallback(
@@ -1259,7 +1290,7 @@ const App: React.FC = () => {
               <button
                 onClick={() => {
                   dispatch(signOutLocal());
-                  navigate("/sign-in?signedOut=1", { replace: true });
+                  navigate("/login?signedOut=1", { replace: true });
                 }}
                 className="bg-white text-gray-700 border border-gray-200 px-3 py-2.5 rounded-xl font-bold text-sm hover:bg-gray-50 transition-all flex items-center shadow-sm"
                 title="Sign out"
@@ -1307,7 +1338,6 @@ const App: React.FC = () => {
             lang={currentLang}
             onClose={() => setIsTrashModalOpen(false)}
             onRestore={handleRestoreDeletedLead}
-            onPermanentDelete={handlePermanentDeleteLead}
           />
         )}
         {taskingOwner && (
@@ -1333,6 +1363,13 @@ const App: React.FC = () => {
           type={toastState.type}
           message={toastState.message}
           onClose={() => setToastState((prev) => ({ ...prev, open: false, message: "" }))}
+        />
+        <NotificationToast
+          isOpen={notificationToastState.open}
+          type={notificationToastState.type}
+          title={notificationToastState.title}
+          message={notificationToastState.message}
+          onClose={() => setNotificationToastState((prev) => ({ ...prev, open: false, message: "" }))}
         />
       </div>
     </DndContext>
