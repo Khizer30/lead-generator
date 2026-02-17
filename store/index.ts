@@ -1,11 +1,23 @@
 import { configureStore } from "@reduxjs/toolkit";
 
 import authReducer from "./slices/authSlice";
+import commentsReducer from "./slices/commentSlice";
+import dealsReducer from "./slices/dealSlice";
+import leadsReducer from "./slices/leadSlice";
+import projectsReducer from "./slices/projectSlice";
+import tasksReducer from "./slices/taskSlice";
+import teamReducer from "./slices/teamSlice";
 import usersReducer from "./slices/userSlice";
 
 export const store = configureStore({
   reducer: {
     auth: authReducer,
+    comments: commentsReducer,
+    deals: dealsReducer,
+    leads: leadsReducer,
+    projects: projectsReducer,
+    tasks: tasksReducer,
+    team: teamReducer,
     users: usersReducer
   }
 });

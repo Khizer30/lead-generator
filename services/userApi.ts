@@ -94,5 +94,12 @@ export const userApi = {
     }
 
     throw lastError instanceof Error ? lastError : new Error("Failed to update user");
+  },
+
+  deleteUser: async (userId: string): Promise<{ message: string }> => {
+    const data = await request(`/user/${userId}`, { method: "DELETE" });
+    return {
+      message: data.message || "User deleted successfully"
+    };
   }
 };

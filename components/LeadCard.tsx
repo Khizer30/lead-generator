@@ -22,6 +22,13 @@ const LeadCard: React.FC<LeadCardProps> = ({ lead, onClick, onAddDeal }) => {
     : undefined;
 
   const isClosed = lead.pipelineStage === PipelineStage.CLOSED;
+  const createdDate = (() => {
+    if (!lead.createdAt) return "Not found";
+    const parsed = new Date(lead.createdAt);
+    if (Number.isNaN(parsed.getTime())) return "Not found";
+    return parsed.toLocaleDateString("de-DE");
+  })();
+  const commentCount = typeof lead.commentCount === "number" ? lead.commentCount : lead.comments.length;
 
   return (
     <div
@@ -81,11 +88,11 @@ const LeadCard: React.FC<LeadCardProps> = ({ lead, onClick, onAddDeal }) => {
       <div className="mt-4 pt-3 border-t border-gray-100 flex justify-between items-center text-[10px] text-gray-400">
         <div className="flex items-center">
           <MessageSquare size={10} className="mr-1" />
-          {lead.comments.length} Kommentare
+          {commentCount} Kommentare
         </div>
         <div className="flex items-center">
           {isClosed && <DollarSign size={10} className="text-emerald-500 mr-1" />}
-          <span>{new Date(lead.createdAt).toLocaleDateString("de-DE")}</span>
+          <span>{createdDate}</span>
         </div>
       </div>
     </div>

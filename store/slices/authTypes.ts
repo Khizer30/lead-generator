@@ -3,6 +3,7 @@ export type AuthUser = {
   name?: string;
   email: string;
   role?: string;
+  teamId?: string;
 };
 
 export type SignInPayload = {

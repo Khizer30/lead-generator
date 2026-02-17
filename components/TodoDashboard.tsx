@@ -2,96 +2,100 @@ import React, { useState, useEffect, useMemo } from "react";
 import {
   CheckCircle2,
   Circle,
-  Trash2,
   Calendar,
-  Mic,
   Send,
   Clock,
   Loader2,
   User,
-  ClipboardList,
   Zap,
   Link as LinkIcon,
   Users
 } from "lucide-react";
-import { Todo, Task, Lead, Owner } from "../types";
-import { api } from "../services/api";
 import { translations, Language } from "../translations";
+import { useAppDispatch, useAppSelector } from "../store/hooks";
+import { createTask, getTasks, updateTask } from "../store/actions/taskActions";
+import { getLeads } from "../store/actions/leadActions";
+import { getUsers } from "../store/actions/userActions";
 
 interface TodoDashboardProps {
   lang: Language;
 }
 
 const TodoDashboard: React.FC<TodoDashboardProps> = ({ lang }) => {
-  const [todos, setTodos] = useState<Todo[]>([]);
-  const [leads, setLeads] = useState<Lead[]>([]);
-  const [owners, setOwners] = useState<Owner[]>([]);
-  const [assignedTasks, setAssignedTasks] = useState<Task[]>([]);
+  const dispatch = useAppDispatch();
+  const tasks = useAppSelector((state) => state.tasks.tasks);
+  const tasksStatus = useAppSelector((state) => state.tasks.listStatus);
+  const tasksTotal = useAppSelector((state) => state.tasks.total);
+  const tasksLimit = useAppSelector((state) => state.tasks.limit);
+  const leads = useAppSelector((state) => state.leads.leads);
+  const leadsStatus = useAppSelector((state) => state.leads.listStatus);
+  const owners = useAppSelector((state) => state.users.users);
+  const usersStatus = useAppSelector((state) => state.users.listStatus);
+  const currentUserId = useAppSelector((state) => state.auth.user?.userId);
 
   const [text, setText] = useState("");
   const [deadline, setDeadline] = useState("");
+  const [deadlineError, setDeadlineError] = useState("");
   const [selectedLeadId, setSelectedLeadId] = useState("");
   const [selectedOwnerId, setSelectedOwnerId] = useState("");
-
-  const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const limit = 10;
 
   const t = useMemo(() => translations[lang], [lang]);
+  const loading = tasksStatus === "loading" || leadsStatus === "loading" || usersStatus === "loading";
+  const today = new Date().toISOString().split("T")[0];
+  const totalPages = Math.max(1, Math.ceil(tasksTotal / (tasksLimit || limit)));
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    void dispatch(getTasks({ page, limit }));
+  }, [dispatch, page]);
 
-  const fetchData = async () => {
-    setLoading(true);
-    const [todoData, taskData, leadData, ownerData] = await Promise.all([
-      api.getTodos(),
-      api.getTasks(),
-      api.getLeads(),
-      api.getOwners()
-    ]);
-    setTodos(todoData.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
-    setLeads(leadData);
-    setOwners(ownerData);
-    setAssignedTasks(
-      taskData
-        .filter((t) => t.ownerId === "o1")
-        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-    );
-    setLoading(false);
-  };
+  useEffect(() => {
+    void dispatch(getLeads({ page: 1, limit: 500 }));
+    void dispatch(getUsers({ page: 1, limit: 200 }));
+  }, [dispatch]);
 
   const handleAddTodo = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!text.trim()) return;
+    if (deadline && deadline < today) {
+      setDeadlineError(lang === "de" ? "Deadline darf nicht in der Vergangenheit liegen." : "Deadline cannot be a past date.");
+      return;
+    }
+    const assignedTo = selectedOwnerId || currentUserId;
+    if (!assignedTo) return;
 
-    await api.addTodo({
-      text,
-      deadline,
-      leadId: selectedLeadId || undefined,
-      assignedToOwnerId: selectedOwnerId || "o1", // Default to current user
-      assignedByOwnerId: "o1" // Mock current user
-    });
+    await dispatch(
+      createTask({
+        description: text.trim(),
+        assignedTo,
+        leadId: selectedLeadId || undefined,
+        deadline: deadline || undefined,
+        completed: false
+      })
+    );
 
     setText("");
     setDeadline("");
+    setDeadlineError("");
     setSelectedLeadId("");
     setSelectedOwnerId("");
-    fetchData();
+    setPage(1);
+    void dispatch(getTasks({ page: 1, limit }));
   };
 
-  const handleToggleTodo = async (id: string) => {
-    const updated = await api.toggleTodo(id);
-    setTodos(updated.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
-  };
-
-  const handleDeleteTodo = async (id: string) => {
-    const updated = await api.deleteTodo(id);
-    setTodos(updated.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+  const handleToggleTodo = async (taskId: string, completed: boolean) => {
+    await dispatch(
+      updateTask({
+        taskId,
+        data: { completed: !completed }
+      })
+    );
   };
 
   const getLeadName = (id?: string) => {
     if (!id) return null;
-    const lead = leads.find((l) => l.id === id);
+    const lead = leads.find((leadRecord) => leadRecord.id === id);
     return lead ? `${lead.firstName} ${lead.lastName}` : null;
   };
 
@@ -124,7 +128,7 @@ const TodoDashboard: React.FC<TodoDashboardProps> = ({ lang }) => {
             </div>
             <h3 className="text-lg font-bold text-gray-800 tracking-tight">{t.todos.selfCreated}</h3>
             <span className="text-[10px] font-bold bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">
-              {todos.length}
+              {tasks.length}
             </span>
           </div>
 
@@ -154,10 +158,10 @@ const TodoDashboard: React.FC<TodoDashboardProps> = ({ lang }) => {
                     >
                       <option value="">{t.todos.myself}</option>
                       {owners
-                        .filter((o) => o.id !== "o1")
-                        .map((o) => (
-                          <option key={o.id} value={o.id}>
-                            {o.name}
+                        .filter((owner) => owner.id !== currentUserId)
+                        .map((owner) => (
+                          <option key={owner.id} value={owner.id}>
+                            {owner.name}
                           </option>
                         ))}
                     </select>
@@ -194,10 +198,22 @@ const TodoDashboard: React.FC<TodoDashboardProps> = ({ lang }) => {
                     <input
                       type="date"
                       value={deadline}
-                      onChange={(e) => setDeadline(e.target.value)}
+                      min={today}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setDeadline(value);
+                        if (value && value < today) {
+                          setDeadlineError(
+                            lang === "de" ? "Deadline darf nicht in der Vergangenheit liegen." : "Deadline cannot be a past date."
+                          );
+                        } else {
+                          setDeadlineError("");
+                        }
+                      }}
                       className="w-full pl-9 pr-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500 transition-all text-xs font-bold text-gray-600"
                     />
                   </div>
+                  {deadlineError && <p className="mt-1 text-[11px] font-semibold text-red-500">{deadlineError}</p>}
                 </div>
 
                 <div className="flex items-end">
@@ -214,37 +230,37 @@ const TodoDashboard: React.FC<TodoDashboardProps> = ({ lang }) => {
           </div>
 
           <div className="space-y-3">
-            {todos.length === 0 ? (
+            {tasks.length === 0 ? (
               <p className="text-xs text-gray-400 italic px-2">{t.todos.noPersonalTasks}</p>
             ) : (
-              todos.map((todo) => {
-                const leadName = getLeadName(todo.leadId);
-                const ownerName = getOwnerName(todo.assignedToOwnerId);
-                const isOverdue = todo.deadline && new Date(todo.deadline) < new Date() && !todo.isCompleted;
+              tasks.map((task) => {
+                const leadName = getLeadName(task.leadId);
+                const ownerName = getOwnerName(task.assignedTo);
+                const isOverdue = task.deadline && new Date(task.deadline) < new Date() && !task.completed;
 
                 return (
                   <div
-                    key={todo.id}
-                    className={`group flex items-center gap-4 p-4 rounded-2xl border transition-all ${todo.isCompleted ? "bg-gray-50 border-transparent opacity-60" : "bg-white border-gray-100 hover:border-blue-200"}`}
+                    key={task.id}
+                    className={`group flex items-center gap-4 p-4 rounded-2xl border transition-all ${task.completed ? "bg-gray-50 border-transparent opacity-60" : "bg-white border-gray-100 hover:border-blue-200"}`}
                   >
                     <button
-                      onClick={() => handleToggleTodo(todo.id)}
-                      className={`shrink-0 transition-colors ${todo.isCompleted ? "text-blue-500" : "text-gray-300 hover:text-blue-500"}`}
+                      onClick={() => handleToggleTodo(task.id, task.completed)}
+                      className={`shrink-0 transition-colors ${task.completed ? "text-blue-500" : "text-gray-300 hover:text-blue-500"}`}
                     >
-                      {todo.isCompleted ? <CheckCircle2 size={22} /> : <Circle size={22} />}
+                      {task.completed ? <CheckCircle2 size={22} /> : <Circle size={22} />}
                     </button>
                     <div className="flex-1 min-w-0">
                       <p
-                        className={`text-sm font-bold truncate ${todo.isCompleted ? "text-gray-400 line-through" : "text-gray-900"}`}
+                        className={`text-sm font-bold truncate ${task.completed ? "text-gray-400 line-through" : "text-gray-900"}`}
                       >
-                        {todo.text}
+                        {task.description}
                       </p>
                       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5">
-                        {todo.deadline && (
+                        {task.deadline && (
                           <div className="flex items-center gap-1.5">
                             <Clock size={12} className={isOverdue ? "text-red-500" : "text-gray-400"} />
                             <span className={`text-[10px] font-bold ${isOverdue ? "text-red-500" : "text-gray-500"}`}>
-                              {new Date(todo.deadline).toLocaleDateString(lang === "de" ? "de-DE" : "en-US")}
+                              {new Date(task.deadline).toLocaleDateString(lang === "de" ? "de-DE" : "en-US")}
                             </span>
                           </div>
                         )}
@@ -254,7 +270,7 @@ const TodoDashboard: React.FC<TodoDashboardProps> = ({ lang }) => {
                             {leadName}
                           </div>
                         )}
-                        {ownerName && todo.assignedToOwnerId !== "o1" && (
+                        {ownerName && task.assignedTo !== currentUserId && (
                           <div className="flex items-center gap-1 text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded text-[9px] font-bold">
                             <User size={10} />
                             {ownerName}
@@ -262,18 +278,35 @@ const TodoDashboard: React.FC<TodoDashboardProps> = ({ lang }) => {
                         )}
                       </div>
                     </div>
-                    <button
-                      onClick={() => handleDeleteTodo(todo.id)}
-                      className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
-                    >
-                      <Trash2 size={16} />
-                    </button>
                   </div>
                 );
               })
             )}
           </div>
         </section>
+      </div>
+      <div className="mt-4 flex items-center justify-between border-t border-gray-100 pt-4">
+        <p className="text-xs font-semibold text-gray-500">
+          {lang === "de" ? `Seite ${page} von ${totalPages}` : `Page ${page} of ${totalPages}`}
+        </p>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+            disabled={page <= 1 || loading}
+            className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-600 disabled:opacity-40"
+          >
+            {lang === "de" ? "Zuruck" : "Previous"}
+          </button>
+          <button
+            type="button"
+            onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+            disabled={page >= totalPages || loading}
+            className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-600 disabled:opacity-40"
+          >
+            {lang === "de" ? "Weiter" : "Next"}
+          </button>
+        </div>
       </div>
     </div>
   );

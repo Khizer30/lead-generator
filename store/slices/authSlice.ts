@@ -14,13 +14,14 @@ import {
   saveAuthUser,
   setManualSignOut
 } from "../storage";
+import { AuthUser } from "./authTypes";
 
 const persistedUser = loadAuthUser();
 
 type AsyncStatus = "idle" | "loading" | "succeeded" | "failed";
 
 type AuthState = {
-  user: { userId?: string; name?: string; email: string; role?: string } | null;
+  user: AuthUser | null;
   isAuthenticated: boolean;
   bootstrapStatus: AsyncStatus;
   signInStatus: AsyncStatus;

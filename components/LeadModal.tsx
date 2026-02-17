@@ -1,14 +1,15 @@
-import React, { useState, useMemo } from "react";
-import { X, Linkedin, Loader2, ChevronRight, Check, User, Building, Calendar, Link as LinkIcon } from "lucide-react";
-import { Lead, PipelineStage, EnrichmentData, Owner } from "../types";
-import { STAGES } from "../constants";
+import React, { useMemo, useState } from "react";
+import { useFormik } from "formik";
+import { X, Linkedin, Loader2, ChevronRight, Check } from "lucide-react";
+import * as Yup from "yup";
+import { Lead, PipelineStage } from "../types";
 import { api } from "../services/api";
 import { translations, Language } from "../translations";
 
 interface LeadModalProps {
   onClose: () => void;
   onSave: (lead: Partial<Lead>) => void;
-  owners: Owner[];
+  owners: Array<{ id: string; name: string }>;
   lang: Language;
 }
 
@@ -18,22 +19,98 @@ const LeadModal: React.FC<LeadModalProps> = ({ onClose, onSave, owners, lang }) 
   const [enrichmentError, setEnrichmentError] = useState("");
 
   const t = useMemo(() => translations[lang], [lang]);
+  const isDe = lang === "de";
+  const lettersOnlyPattern = /^[\p{L}\s'-]+$/u;
+  const noDigitsPattern = /^\D+$/;
+  const noEmojiOrSymbolsPattern = /^[\p{L}\p{N}\s'-]+$/u;
+  const isValidLinkedInUrl = (value?: string) => {
+    if (!value) return true;
+    try {
+      const url = new URL(value);
+      const host = url.hostname.toLowerCase();
+      return host === "linkedin.com" || host === "www.linkedin.com" || host.endsWith(".linkedin.com");
+    } catch {
+      return false;
+    }
+  };
 
-  const [formData, setFormData] = useState<Partial<Lead>>({
-    firstName: "",
-    lastName: "",
-    currentPosition: "",
-    company: "",
-    linkedinUrl: "",
-    ownerName: "",
-    pipelineStage: PipelineStage.IDENTIFIED,
-    email: "",
-    phone: "",
-    birthday: ""
+  const validationSchema = useMemo(
+    () =>
+      Yup.object({
+        firstName: Yup.string()
+          .trim()
+          .required(isDe ? "Vorname ist erforderlich" : "First name is required")
+          .matches(noDigitsPattern, isDe ? "Vorname darf keine Zahlen enthalten" : "First name cannot contain numbers")
+          .matches(lettersOnlyPattern, isDe ? "Vorname enthält ungültige Zeichen" : "First name contains invalid characters"),
+        lastName: Yup.string()
+          .trim()
+          .required(isDe ? "Nachname ist erforderlich" : "Last name is required")
+          .matches(noDigitsPattern, isDe ? "Nachname darf keine Zahlen enthalten" : "Last name cannot contain numbers")
+          .matches(lettersOnlyPattern, isDe ? "Nachname enthält ungültige Zeichen" : "Last name contains invalid characters"),
+        currentPosition: Yup.string()
+          .trim()
+          .required(isDe ? "Position ist erforderlich" : "Position is required")
+          .matches(noDigitsPattern, isDe ? "Position darf keine Zahlen enthalten" : "Position cannot contain numbers")
+          .matches(lettersOnlyPattern, isDe ? "Position enthält ungültige Zeichen" : "Position contains invalid characters"),
+        company: Yup.string()
+          .trim()
+          .test("company-chars", isDe ? "Firma enthält ungültige Zeichen" : "Company contains invalid characters", (value) => {
+            if (!value) return true;
+            return noEmojiOrSymbolsPattern.test(value);
+          }),
+        ownerName: Yup.string().trim().required(isDe ? "Betreuer ist erforderlich" : "Owner is required"),
+        email: Yup.string()
+          .transform((value) => (typeof value === "string" ? value.trim() : value))
+          .required("Email must be a valid email address")
+          .test("email-or-empty", "Email must be a valid email address", (value) => {
+            const normalized = typeof value === "string" ? value.trim() : "";
+            if (!normalized) return false;
+            return Yup.string().email().isValidSync(normalized);
+          }),
+        phone: Yup.string()
+          .transform((value) => (typeof value === "string" ? value.trim() : value))
+          .required("Phone must contain only digits, spaces, and an optional leading +")
+          .test("phone-or-empty", "Phone must contain only digits, spaces, and an optional leading +", (value) => {
+            const normalized = typeof value === "string" ? value.trim() : "";
+            if (!normalized) return false;
+            return /^\+?\d[\d\s]*$/.test(normalized);
+          }),
+        linkedinUrl: Yup.string()
+          .transform((value) => (typeof value === "string" ? value.trim() : value))
+          .test("valid-linkedin-url", isDe ? "Ungültige LinkedIn URL" : "Invalid LinkedIn URL", (value) => {
+            const normalized = typeof value === "string" ? value.trim() : "";
+            if (!normalized) return true;
+            return Yup.string().url().isValidSync(normalized) && isValidLinkedInUrl(normalized);
+          }),
+        birthday: Yup.string().test("valid-date", isDe ? "Ungültiges Datum" : "Invalid date", (value) => {
+          if (!value) return true;
+          return !Number.isNaN(new Date(value).getTime());
+        })
+      }),
+    [isDe]
+  );
+
+  const formik = useFormik<Partial<Lead>>({
+    initialValues: {
+      firstName: "",
+      lastName: "",
+      currentPosition: "",
+      company: "",
+      linkedinUrl: "",
+      ownerName: "",
+      pipelineStage: PipelineStage.IDENTIFIED,
+      email: "",
+      phone: "",
+      birthday: ""
+    },
+    validationSchema,
+    onSubmit: (values) => {
+      onSave(values);
+    }
   });
 
   const handleEnrich = async () => {
-    if (!formData.linkedinUrl?.includes("linkedin.com/")) {
+    if (!formik.values.linkedinUrl || !Yup.string().url().isValidSync(formik.values.linkedinUrl) || !formik.values.linkedinUrl.includes("linkedin.com")) {
       setEnrichmentError(
         lang === "de" ? "Bitte geben Sie eine gültige LinkedIn URL ein." : "Please enter a valid LinkedIn URL."
       );
@@ -43,8 +120,8 @@ const LeadModal: React.FC<LeadModalProps> = ({ onClose, onSave, owners, lang }) 
     setLoading(true);
     setEnrichmentError("");
     try {
-      const data = await api.enrichLinkedIn(formData.linkedinUrl);
-      setFormData((prev) => ({ ...prev, ...data }));
+      const data = await api.enrichLinkedIn(formik.values.linkedinUrl);
+      formik.setValues({ ...formik.values, ...data });
       setStep(2);
     } catch (err) {
       setEnrichmentError(
@@ -56,11 +133,6 @@ const LeadModal: React.FC<LeadModalProps> = ({ onClose, onSave, owners, lang }) 
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    onSave(formData);
   };
 
   return (
@@ -100,20 +172,25 @@ const LeadModal: React.FC<LeadModalProps> = ({ onClose, onSave, owners, lang }) 
                   </div>
                   <input
                     type="url"
-                    value={formData.linkedinUrl}
-                    onChange={(e) => setFormData({ ...formData, linkedinUrl: e.target.value })}
+                    name="linkedinUrl"
+                    value={formik.values.linkedinUrl || ""}
+                    onChange={formik.handleChange}
+                    onBlur={formik.handleBlur}
                     placeholder="https://www.linkedin.com/in/nutzername"
                     className="w-full pl-10 pr-4 py-3 border-gray-200 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
                   />
                 </div>
                 {enrichmentError && <p className="mt-2 text-xs text-red-500">{enrichmentError}</p>}
+                {formik.touched.linkedinUrl && formik.errors.linkedinUrl && (
+                  <p className="mt-2 text-xs text-red-500">{formik.errors.linkedinUrl}</p>
+                )}
                 <p className="mt-2 text-xs text-gray-400">{t.leadModal.helpText}</p>
               </div>
 
               <div className="flex flex-col space-y-3">
                 <button
                   onClick={handleEnrich}
-                  disabled={loading || !formData.linkedinUrl}
+                  disabled={loading || !formik.values.linkedinUrl}
                   className="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-xl hover:bg-blue-700 transition-all disabled:opacity-50 flex items-center justify-center"
                 >
                   {loading ? <Loader2 className="animate-spin mr-2" size={18} /> : <Check className="mr-2" size={18} />}
@@ -129,31 +206,39 @@ const LeadModal: React.FC<LeadModalProps> = ({ onClose, onSave, owners, lang }) 
               </div>
             </div>
           ) : (
-            <form onSubmit={handleSubmit} className="space-y-4 pb-4">
+            <form onSubmit={formik.handleSubmit} className="space-y-4 pb-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
                     {t.leadModal.firstName} *
                   </label>
                   <input
-                    required
+                    name="firstName"
                     type="text"
-                    value={formData.firstName}
-                    onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                    value={formik.values.firstName || ""}
+                    onChange={formik.handleChange}
+                    onBlur={formik.handleBlur}
                     className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
                   />
+                  {formik.touched.firstName && formik.errors.firstName && (
+                    <p className="mt-1 text-xs text-red-500">{formik.errors.firstName}</p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
                     {t.leadModal.lastName} *
                   </label>
                   <input
-                    required
+                    name="lastName"
                     type="text"
-                    value={formData.lastName}
-                    onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                    value={formik.values.lastName || ""}
+                    onChange={formik.handleChange}
+                    onBlur={formik.handleBlur}
                     className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
                   />
+                  {formik.touched.lastName && formik.errors.lastName && (
+                    <p className="mt-1 text-xs text-red-500">{formik.errors.lastName}</p>
+                  )}
                 </div>
               </div>
 
@@ -163,19 +248,25 @@ const LeadModal: React.FC<LeadModalProps> = ({ onClose, onSave, owners, lang }) 
                     {t.leadModal.position} *
                   </label>
                   <input
-                    required
+                    name="currentPosition"
                     type="text"
-                    value={formData.currentPosition}
-                    onChange={(e) => setFormData({ ...formData, currentPosition: e.target.value })}
+                    value={formik.values.currentPosition || ""}
+                    onChange={formik.handleChange}
+                    onBlur={formik.handleBlur}
                     className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
                   />
+                  {formik.touched.currentPosition && formik.errors.currentPosition && (
+                    <p className="mt-1 text-xs text-red-500">{formik.errors.currentPosition}</p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-gray-500 uppercase mb-1">{t.leadModal.company}</label>
                   <input
+                    name="company"
                     type="text"
-                    value={formData.company}
-                    onChange={(e) => setFormData({ ...formData, company: e.target.value })}
+                    value={formik.values.company || ""}
+                    onChange={formik.handleChange}
+                    onBlur={formik.handleBlur}
                     className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
@@ -184,9 +275,10 @@ const LeadModal: React.FC<LeadModalProps> = ({ onClose, onSave, owners, lang }) 
               <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase mb-1">{t.leadModal.owner} *</label>
                 <select
-                  required
-                  value={formData.ownerName}
-                  onChange={(e) => setFormData({ ...formData, ownerName: e.target.value })}
+                  name="ownerName"
+                  value={formik.values.ownerName || ""}
+                  onChange={formik.handleChange}
+                  onBlur={formik.handleBlur}
                   className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 bg-white"
                 >
                   <option value="" disabled>
@@ -198,26 +290,39 @@ const LeadModal: React.FC<LeadModalProps> = ({ onClose, onSave, owners, lang }) 
                     </option>
                   ))}
                 </select>
+                {formik.touched.ownerName && formik.errors.ownerName && (
+                  <p className="mt-1 text-xs text-red-500">{formik.errors.ownerName}</p>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-gray-500 uppercase mb-1">{t.leadModal.email}</label>
                   <input
+                    name="email"
                     type="email"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    value={formik.values.email || ""}
+                    onChange={formik.handleChange}
+                    onBlur={formik.handleBlur}
                     className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
                   />
+                  {formik.touched.email && formik.errors.email && (
+                    <p className="mt-1 text-xs text-red-500">{formik.errors.email}</p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-gray-500 uppercase mb-1">{t.leadModal.phone}</label>
                   <input
+                    name="phone"
                     type="tel"
-                    value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    value={formik.values.phone || ""}
+                    onChange={formik.handleChange}
+                    onBlur={formik.handleBlur}
                     className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
                   />
+                  {formik.touched.phone && formik.errors.phone && (
+                    <p className="mt-1 text-xs text-red-500">{formik.errors.phone}</p>
+                  )}
                 </div>
               </div>
 
@@ -229,23 +334,33 @@ const LeadModal: React.FC<LeadModalProps> = ({ onClose, onSave, owners, lang }) 
                 <div className="relative">
                   <Linkedin className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
                   <input
+                    name="linkedinUrl"
                     type="url"
-                    value={formData.linkedinUrl}
-                    onChange={(e) => setFormData({ ...formData, linkedinUrl: e.target.value })}
+                    value={formik.values.linkedinUrl || ""}
+                    onChange={formik.handleChange}
+                    onBlur={formik.handleBlur}
                     placeholder="https://linkedin.com/in/..."
                     className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
+                {formik.touched.linkedinUrl && formik.errors.linkedinUrl && (
+                  <p className="mt-1 text-xs text-red-500">{formik.errors.linkedinUrl}</p>
+                )}
               </div>
 
               <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase mb-1">{t.leadModal.birthday}</label>
                 <input
+                  name="birthday"
                   type="date"
-                  value={formData.birthday}
-                  onChange={(e) => setFormData({ ...formData, birthday: e.target.value })}
+                  value={formik.values.birthday || ""}
+                  onChange={formik.handleChange}
+                  onBlur={formik.handleBlur}
                   className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
                 />
+                {formik.touched.birthday && formik.errors.birthday && (
+                  <p className="mt-1 text-xs text-red-500">{formik.errors.birthday}</p>
+                )}
               </div>
 
               <div className="pt-4 flex space-x-3">

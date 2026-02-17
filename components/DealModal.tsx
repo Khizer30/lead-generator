@@ -1,28 +1,58 @@
-import React, { useState, useMemo } from "react";
-import { X, CheckCircle, DollarSign, Calendar, Type, FileText, ChevronRight, FolderKanban } from "lucide-react";
-import { Lead, Deal, DealType, Project } from "../types";
+import React, { useEffect, useState, useMemo } from "react";
+import { X, CheckCircle, DollarSign, Calendar, Type, FileText, ChevronRight, FolderKanban, User } from "lucide-react";
+import { Lead, Deal, Project } from "../types";
 import { translations, Language } from "../translations";
+import { useAppDispatch, useAppSelector } from "../store/hooks";
+import { getProjects } from "../store/actions/projectActions";
+
+export type DealModalSubmitPayload = Omit<Deal, "id" | "createdAt" | "type"> & {
+  dealType: "CONSULTING" | "ONLINE_TRADING" | "OFF_SITE";
+  ownerId: string;
+};
+
+type DealModalFormState = {
+  name: string;
+  dealType: DealModalSubmitPayload["dealType"];
+  totalAmount: number;
+  currency: string;
+  startDate: string;
+  endDate: string;
+  description: string;
+  projectId: string;
+  ownerId: string;
+};
 
 interface DealModalProps {
   lead: Lead;
   projects: Project[];
+  owners: Array<{ id: string; name: string }>;
   lang: Language;
   onClose: () => void;
-  onSave: (dealData: Omit<Deal, "id" | "createdAt">) => void;
+  onSave: (dealData: DealModalSubmitPayload) => void;
 }
 
-const DealModal: React.FC<DealModalProps> = ({ lead, projects, lang, onClose, onSave }) => {
+const DealModal: React.FC<DealModalProps> = ({ lead, projects, owners, lang, onClose, onSave }) => {
+  const dispatch = useAppDispatch();
+  const apiProjects = useAppSelector((state) => state.projects.projects);
+  const projectsStatus = useAppSelector((state) => state.projects.listStatus);
   const t = useMemo(() => translations[lang], [lang]);
+  const defaultOwnerId = useMemo(() => owners.find((owner) => owner.name === lead.ownerName)?.id || "", [lead.ownerName, owners]);
+  const projectOptions = apiProjects.length > 0 ? apiProjects : projects;
 
-  const [formData, setFormData] = useState({
+  useEffect(() => {
+    void dispatch(getProjects({ page: 1, limit: 200 }));
+  }, [dispatch]);
+
+  const [formData, setFormData] = useState<DealModalFormState>({
     name: "",
-    type: DealType.CONSULTING,
+    dealType: "CONSULTING",
     totalAmount: 0,
     currency: "EUR",
     startDate: "",
     endDate: "",
     description: "",
-    projectId: lead.projectId || ""
+    projectId: lead.projectId || "",
+    ownerId: defaultOwnerId
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -30,6 +60,7 @@ const DealModal: React.FC<DealModalProps> = ({ lead, projects, lang, onClose, on
     onSave({
       ...formData,
       leadId: lead.id,
+      ownerId: formData.ownerId,
       projectId: formData.projectId || undefined
     });
   };
@@ -86,9 +117,34 @@ const DealModal: React.FC<DealModalProps> = ({ lead, projects, lang, onClose, on
                 onChange={(e) => setFormData({ ...formData, projectId: e.target.value })}
               >
                 <option value="">Keinem Projekt zugeordnet</option>
-                {projects.map((project) => (
+                {projectOptions.map((project) => (
                   <option key={project.id} value={project.id}>
-                    {project.title}
+                    {project.title || project.id}
+                  </option>
+                ))}
+                {projectsStatus === "loading" && <option value="" disabled>{lang === "de" ? "Lade Projekte..." : "Loading projects..."}</option>}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">
+              {lang === "de" ? "Betreuer" : "Owner"}
+            </label>
+            <div className="relative">
+              <User className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300" size={16} />
+              <select
+                required
+                className="w-full pl-10 pr-4 py-3 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-emerald-500 text-sm font-bold text-gray-700 appearance-none"
+                value={formData.ownerId}
+                onChange={(e) => setFormData({ ...formData, ownerId: e.target.value })}
+              >
+                <option value="" disabled>
+                  {lang === "de" ? "Bitte wählen..." : "Please select..."}
+                </option>
+                {owners.map((owner) => (
+                  <option key={owner.id} value={owner.id}>
+                    {owner.name}
                   </option>
                 ))}
               </select>
@@ -102,14 +158,12 @@ const DealModal: React.FC<DealModalProps> = ({ lead, projects, lang, onClose, on
               </label>
               <select
                 className="w-full px-4 py-3 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-emerald-500 text-sm font-bold text-gray-700"
-                value={formData.type}
-                onChange={(e) => setFormData({ ...formData, type: e.target.value as DealType })}
+                value={formData.dealType}
+                onChange={(e) => setFormData({ ...formData, dealType: e.target.value as DealModalSubmitPayload["dealType"] })}
               >
-                {Object.values(DealType).map((type) => (
-                  <option key={type} value={type}>
-                    {type}
-                  </option>
-                ))}
+                <option value="CONSULTING">CONSULTING</option>
+                <option value="ONLINE_TRADING">ONLINE_TRADING</option>
+                <option value="OFF_SITE">OFF_SITE</option>
               </select>
             </div>
             <div className="grid grid-cols-[1fr_2fr] gap-2">

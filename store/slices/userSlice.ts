@@ -1,6 +1,6 @@
 import { createSlice } from "@reduxjs/toolkit";
 
-import { getUserById, getUsers, updateUser } from "../actions/userActions";
+import { deleteUser, getUserById, getUsers, updateUser } from "../actions/userActions";
 
 export type UserStatus = "ACTIVE" | "INACTIVE" | string;
 
@@ -47,6 +47,7 @@ type UsersState = {
   listStatus: AsyncStatus;
   detailStatus: AsyncStatus;
   updateStatus: AsyncStatus;
+  deleteStatus: AsyncStatus;
   error: string | null;
   successMessage: string | null;
 };
@@ -60,6 +61,7 @@ const initialState: UsersState = {
   listStatus: "idle",
   detailStatus: "idle",
   updateStatus: "idle",
+  deleteStatus: "idle",
   error: null,
   successMessage: null
 };
@@ -120,6 +122,23 @@ const userSlice = createSlice({
       .addCase(updateUser.rejected, (state, action) => {
         state.updateStatus = "failed";
         state.error = (action.payload as string) || "Failed to update user";
+      })
+      .addCase(deleteUser.pending, (state) => {
+        state.deleteStatus = "loading";
+        state.error = null;
+        state.successMessage = null;
+      })
+      .addCase(deleteUser.fulfilled, (state, action) => {
+        state.deleteStatus = "succeeded";
+        state.successMessage = action.payload.message;
+        state.users = state.users.filter((user) => user.id !== action.payload.userId);
+        if (state.selectedUser?.id === action.payload.userId) {
+          state.selectedUser = null;
+        }
+      })
+      .addCase(deleteUser.rejected, (state, action) => {
+        state.deleteStatus = "failed";
+        state.error = (action.payload as string) || "Failed to delete user";
       });
   }
 });

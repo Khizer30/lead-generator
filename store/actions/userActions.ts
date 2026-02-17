@@ -26,3 +26,12 @@ export const updateUser = createAsyncThunk("users/updateUser", async (payload: U
     return rejectWithValue(error instanceof Error ? error.message : "Failed to update user");
   }
 });
+
+export const deleteUser = createAsyncThunk("users/deleteUser", async (userId: string, { rejectWithValue }) => {
+  try {
+    const response = await userApi.deleteUser(userId);
+    return { userId, message: response.message };
+  } catch (error) {
+    return rejectWithValue(error instanceof Error ? error.message : "Failed to delete user");
+  }
+});

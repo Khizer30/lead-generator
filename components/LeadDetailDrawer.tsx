@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Lead, Comment, PipelineStage, LeadFile, Deal, Project, Todo } from "../types";
+import { useFormik } from "formik";
+import * as Yup from "yup";
 import {
   X,
   Phone,
@@ -35,10 +37,12 @@ import {
 import { STAGE_COLORS, STAGES } from "../constants";
 import { api } from "../services/api";
 import { translations, Language } from "../translations";
+import ConfirmDeleteModal from "./ConfirmDeleteModal";
 
 interface LeadDetailDrawerProps {
   lead: Lead | null;
   projects: Project[];
+  owners: Array<{ id: string; name: string }>;
   onClose: () => void;
   onUpdate: (updates: Partial<Lead>) => void;
   onAddComment: (text: string) => void;
@@ -46,13 +50,14 @@ interface LeadDetailDrawerProps {
   onDeleteComment?: (commentId: string) => void;
   onAddFile?: (file: Omit<LeadFile, "id" | "uploadedAt">) => void;
   onDeleteFile?: (fileId: string) => void;
-  onDelete?: (id: string) => void;
+  onDelete?: (id: string) => void | Promise<void>;
   lang: Language;
 }
 
 const LeadDetailDrawer: React.FC<LeadDetailDrawerProps> = ({
   lead,
   projects,
+  owners,
   onClose,
   onUpdate,
   onAddComment,
@@ -70,9 +75,11 @@ const LeadDetailDrawer: React.FC<LeadDetailDrawerProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [commentText, setCommentText] = useState("");
   const [isEditing, setIsEditing] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isCommentDeleteModalOpen, setIsCommentDeleteModalOpen] = useState(false);
+  const [commentToDeleteId, setCommentToDeleteId] = useState<string | null>(null);
   const [isSearchingSocial, setIsSearchingSocial] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [editedLead, setEditedLead] = useState<Lead>(lead);
   const [leadDeals, setLeadDeals] = useState<Deal[]>([]);
   const [leadTodos, setLeadTodos] = useState<Todo[]>([]);
 
@@ -80,30 +87,137 @@ const LeadDetailDrawer: React.FC<LeadDetailDrawerProps> = ({
   const [editingCommentText, setEditingCommentText] = useState("");
 
   useEffect(() => {
-    if (lead) {
-      setEditedLead(lead);
-      fetchDeals();
-      fetchTodos();
+    setLeadDeals(lead.deals || []);
+    setLeadTodos(lead.linkedTodos || []);
+  }, [lead.deals, lead.linkedTodos]);
+
+  const lettersOnlyPattern = /^[\p{L}\s'-]+$/u;
+  const noDigitsPattern = /^\D+$/;
+  const noEmojiOrSymbolsPattern = /^[\p{L}\p{N}\s'-]+$/u;
+  const isValidLinkedInUrl = (value?: string) => {
+    if (!value) return true;
+    try {
+      const url = new URL(value);
+      const host = url.hostname.toLowerCase();
+      return host === "linkedin.com" || host === "www.linkedin.com" || host.endsWith(".linkedin.com");
+    } catch {
+      return false;
     }
-  }, [lead]);
-
-  const fetchDeals = async () => {
-    const allDeals = await api.getDeals();
-    setLeadDeals(allDeals.filter((d) => d.leadId === lead.id));
   };
 
-  const fetchTodos = async () => {
-    const allTodos = await api.getTodos();
-    setLeadTodos(
-      allTodos
-        .filter((t) => t.leadId === lead.id)
-        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-    );
-  };
+  const validationSchema = useMemo(
+    () =>
+      Yup.object({
+        firstName: Yup.string()
+          .trim()
+          .required(lang === "de" ? "Vorname ist erforderlich" : "First name is required")
+          .matches(noDigitsPattern, lang === "de" ? "Vorname darf keine Zahlen enthalten" : "First name cannot contain numbers")
+          .matches(lettersOnlyPattern, lang === "de" ? "Vorname enthält ungültige Zeichen" : "First name contains invalid characters"),
+        lastName: Yup.string()
+          .trim()
+          .required(lang === "de" ? "Nachname ist erforderlich" : "Last name is required")
+          .matches(noDigitsPattern, lang === "de" ? "Nachname darf keine Zahlen enthalten" : "Last name cannot contain numbers")
+          .matches(lettersOnlyPattern, lang === "de" ? "Nachname enthält ungültige Zeichen" : "Last name contains invalid characters"),
+        currentPosition: Yup.string()
+          .trim()
+          .required(lang === "de" ? "Position ist erforderlich" : "Position is required")
+          .matches(noDigitsPattern, lang === "de" ? "Position darf keine Zahlen enthalten" : "Position cannot contain numbers")
+          .matches(lettersOnlyPattern, lang === "de" ? "Position enthält ungültige Zeichen" : "Position contains invalid characters"),
+        company: Yup.string()
+          .trim()
+          .test("company-chars", lang === "de" ? "Firma enthält ungültige Zeichen" : "Company contains invalid characters", (value) => {
+            if (!value) return true;
+            return noEmojiOrSymbolsPattern.test(value);
+          }),
+        ownerName: Yup.string().trim().required(lang === "de" ? "Betreuer ist erforderlich" : "Owner is required"),
+        email: Yup.string()
+          .transform((value) => (typeof value === "string" ? value.trim() : value))
+          .test("email-or-empty", lang === "de" ? "Ungültige E-Mail-Adresse" : "Invalid email address", (value) => {
+            const normalized = typeof value === "string" ? value.trim() : "";
+            if (!normalized) return true;
+            return Yup.string().email().isValidSync(normalized);
+          }),
+        phone: Yup.string()
+          .transform((value) => (typeof value === "string" ? value.trim() : value))
+          .test("phone-or-empty", lang === "de" ? "Ungültige Telefonnummer" : "Invalid phone number", (value) => {
+            const normalized = typeof value === "string" ? value.trim() : "";
+            if (!normalized) return true;
+            return /^\+?\d[\d\s]*$/.test(normalized);
+          }),
+        linkedinUrl: Yup.string()
+          .transform((value) => (typeof value === "string" ? value.trim() : value))
+          .test("linkedin-domain", lang === "de" ? "LinkedIn URL erwartet" : "LinkedIn URL expected", (value) => {
+            const normalized = typeof value === "string" ? value.trim() : "";
+            if (!normalized) return true;
+            return Yup.string().url().isValidSync(normalized) && isValidLinkedInUrl(normalized);
+          }),
+        facebookUrl: Yup.string()
+          .transform((value) => (typeof value === "string" ? value.trim() : value))
+          .test("facebook-or-empty", lang === "de" ? "Ungültige URL" : "Invalid URL", (value) => {
+            const normalized = typeof value === "string" ? value.trim() : "";
+            if (!normalized) return true;
+            return Yup.string().url().isValidSync(normalized);
+          }),
+        instagramUrl: Yup.string()
+          .transform((value) => (typeof value === "string" ? value.trim() : value))
+          .test("instagram-or-empty", lang === "de" ? "Ungültige URL" : "Invalid URL", (value) => {
+            const normalized = typeof value === "string" ? value.trim() : "";
+            if (!normalized) return true;
+            return Yup.string().url().isValidSync(normalized);
+          }),
+        tiktokUrl: Yup.string()
+          .transform((value) => (typeof value === "string" ? value.trim() : value))
+          .test("tiktok-or-empty", lang === "de" ? "Ungültige URL" : "Invalid URL", (value) => {
+            const normalized = typeof value === "string" ? value.trim() : "";
+            if (!normalized) return true;
+            return Yup.string().url().isValidSync(normalized);
+          }),
+        twitterUrl: Yup.string()
+          .transform((value) => (typeof value === "string" ? value.trim() : value))
+          .test("twitter-or-empty", lang === "de" ? "Ungültige URL" : "Invalid URL", (value) => {
+            const normalized = typeof value === "string" ? value.trim() : "";
+            if (!normalized) return true;
+            return Yup.string().url().isValidSync(normalized);
+          })
+      }),
+    [lang, lettersOnlyPattern, noDigitsPattern, noEmojiOrSymbolsPattern]
+  );
+
+  const formik = useFormik<Lead>({
+    enableReinitialize: true,
+    initialValues: {
+      ...lead,
+      company: lead.company || "",
+      phone: lead.phone || "",
+      email: lead.email || "",
+      birthday: lead.birthday || "",
+      linkedinUrl: lead.linkedinUrl || "",
+      facebookUrl: lead.facebookUrl || "",
+      instagramUrl: lead.instagramUrl || "",
+      tiktokUrl: lead.tiktokUrl || "",
+      twitterUrl: lead.twitterUrl || ""
+    },
+    validationSchema,
+    onSubmit: async (values) => {
+      await onUpdate(values);
+      setIsEditing(false);
+    }
+  });
 
   const currentProject = useMemo(() => {
     return projects.find((p) => p.id === lead.projectId);
   }, [projects, lead.projectId]);
+  const leadProjectTitles = useMemo(() => {
+    const titles = (lead.availableProjects || [])
+      .map((project) => project.title?.trim())
+      .filter((title): title is string => !!title);
+    return Array.from(new Set(titles));
+  }, [lead.availableProjects]);
+  const projectDisplayItems = useMemo(() => {
+    if (leadProjectTitles.length > 0) return leadProjectTitles;
+    if (currentProject?.title) return [currentProject.title];
+    return [];
+  }, [currentProject?.title, leadProjectTitles]);
 
   const totalDealSumByCurrency = useMemo(() => {
     const sums: Record<string, number> = {};
@@ -115,22 +229,33 @@ const LeadDetailDrawer: React.FC<LeadDetailDrawerProps> = ({
   }, [leadDeals]);
 
   const handleSave = () => {
-    onUpdate(editedLead);
-    setIsEditing(false);
+    formik.handleSubmit();
   };
 
   const handleDelete = () => {
     if (!lead || !onDelete) return;
-    const confirmed = window.confirm(t.trash.confirmMove);
-    if (confirmed) {
-      onDelete(lead.id);
-      onClose();
-    }
+    console.log("[LeadDetailDrawer] open delete confirmation", lead.id);
+    setIsDeleteModalOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!lead || !onDelete) return;
+    console.log("[LeadDetailDrawer] confirm delete", lead.id);
+    await onDelete(lead.id);
+    console.log("[LeadDetailDrawer] delete API dispatched", lead.id);
+    setIsDeleteModalOpen(false);
+    onClose();
+  };
+
+  const handleConfirmDeleteComment = () => {
+    if (!commentToDeleteId) return;
+    onDeleteComment?.(commentToDeleteId);
+    setCommentToDeleteId(null);
+    setIsCommentDeleteModalOpen(false);
   };
 
   const handleToggleTodo = async (id: string) => {
-    await api.toggleTodo(id);
-    fetchTodos();
+    setLeadTodos((prev) => prev.map((todo) => (todo.id === id ? { ...todo, isCompleted: !todo.isCompleted } : todo)));
   };
 
   const handleSocialSearch = async () => {
@@ -138,11 +263,10 @@ const LeadDetailDrawer: React.FC<LeadDetailDrawerProps> = ({
     try {
       const results = await api.searchSocialMedia(lead.firstName, lead.lastName);
       const updates = {
-        ...lead,
+        ...formik.values,
         ...results
       };
-      onUpdate(updates);
-      setEditedLead(updates);
+      formik.setValues(updates as Lead);
     } finally {
       setIsSearchingSocial(false);
     }
@@ -193,6 +317,19 @@ const LeadDetailDrawer: React.FC<LeadDetailDrawerProps> = ({
   };
 
   const locale = lang === "de" ? "de-DE" : "en-US";
+  const notFoundText = lang === "de" ? "Nicht gefunden" : "Not found";
+  const formatDateOrFallback = (value?: string) => {
+    if (!value) return notFoundText;
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return notFoundText;
+    return parsed.toLocaleDateString(locale);
+  };
+  const formatDateTimeOrFallback = (value?: string) => {
+    if (!value) return notFoundText;
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return notFoundText;
+    return parsed.toLocaleString(locale);
+  };
 
   return (
     <div className="fixed inset-0 z-50 overflow-hidden pointer-events-none">
@@ -245,10 +382,10 @@ const LeadDetailDrawer: React.FC<LeadDetailDrawerProps> = ({
               </label>
               <div className="flex items-center space-x-3">
                 <select
-                  value={editedLead.pipelineStage}
-                  onChange={(e) => setEditedLead({ ...editedLead, pipelineStage: e.target.value as PipelineStage })}
+                  value={formik.values.pipelineStage}
+                  onChange={(e) => formik.setFieldValue("pipelineStage", e.target.value as PipelineStage)}
                   disabled={!isEditing}
-                  className={`px-3 py-1.5 rounded-full text-xs font-bold border-none cursor-pointer focus:ring-2 focus:ring-blue-500 disabled:cursor-default ${STAGE_COLORS[editedLead.pipelineStage]}`}
+                  className={`px-3 py-1.5 rounded-full text-xs font-bold border-none cursor-pointer focus:ring-2 focus:ring-blue-500 disabled:cursor-default ${STAGE_COLORS[formik.values.pipelineStage]}`}
                 >
                   {STAGES.map((s) => (
                     <option key={s} value={s}>
@@ -257,7 +394,7 @@ const LeadDetailDrawer: React.FC<LeadDetailDrawerProps> = ({
                   ))}
                 </select>
                 <span className="text-xs text-gray-400 italic">
-                  Zuletzt aktualisiert: {new Date(lead.updatedAt).toLocaleString(locale)}
+                  Zuletzt aktualisiert: {formatDateTimeOrFallback(lead.updatedAt)}
                 </span>
               </div>
             </div>
@@ -270,12 +407,17 @@ const LeadDetailDrawer: React.FC<LeadDetailDrawerProps> = ({
                   </label>
                   {isEditing ? (
                     <input
+                      name="firstName"
                       className="w-full text-sm font-medium border-gray-200 rounded-lg p-2"
-                      value={editedLead.firstName}
-                      onChange={(e) => setEditedLead({ ...editedLead, firstName: e.target.value })}
+                      value={formik.values.firstName}
+                      onChange={formik.handleChange}
+                      onBlur={formik.handleBlur}
                     />
                   ) : (
                     <p className="text-gray-900 font-medium">{lead.firstName}</p>
+                  )}
+                  {isEditing && formik.touched.firstName && formik.errors.firstName && (
+                    <p className="text-[10px] text-red-500 mt-1">{formik.errors.firstName}</p>
                   )}
                 </div>
                 <div>
@@ -284,12 +426,17 @@ const LeadDetailDrawer: React.FC<LeadDetailDrawerProps> = ({
                   </label>
                   {isEditing ? (
                     <input
+                      name="currentPosition"
                       className="w-full text-sm font-medium border-gray-200 rounded-lg p-2"
-                      value={editedLead.currentPosition}
-                      onChange={(e) => setEditedLead({ ...editedLead, currentPosition: e.target.value })}
+                      value={formik.values.currentPosition}
+                      onChange={formik.handleChange}
+                      onBlur={formik.handleBlur}
                     />
                   ) : (
                     <p className="text-gray-900 font-medium">{lead.currentPosition}</p>
+                  )}
+                  {isEditing && formik.touched.currentPosition && formik.errors.currentPosition && (
+                    <p className="text-[10px] text-red-500 mt-1">{formik.errors.currentPosition}</p>
                   )}
                 </div>
                 <div>
@@ -298,9 +445,11 @@ const LeadDetailDrawer: React.FC<LeadDetailDrawerProps> = ({
                   </label>
                   {isEditing ? (
                     <input
+                      name="company"
                       className="w-full text-sm font-medium border-gray-200 rounded-lg p-2"
-                      value={editedLead.company || ""}
-                      onChange={(e) => setEditedLead({ ...editedLead, company: e.target.value })}
+                      value={formik.values.company || ""}
+                      onChange={formik.handleChange}
+                      onBlur={formik.handleBlur}
                     />
                   ) : (
                     <p className="text-gray-900 font-medium">
@@ -317,12 +466,17 @@ const LeadDetailDrawer: React.FC<LeadDetailDrawerProps> = ({
                   </label>
                   {isEditing ? (
                     <input
+                      name="lastName"
                       className="w-full text-sm font-medium border-gray-200 rounded-lg p-2"
-                      value={editedLead.lastName}
-                      onChange={(e) => setEditedLead({ ...editedLead, lastName: e.target.value })}
+                      value={formik.values.lastName}
+                      onChange={formik.handleChange}
+                      onBlur={formik.handleBlur}
                     />
                   ) : (
                     <p className="text-gray-900 font-medium">{lead.lastName}</p>
+                  )}
+                  {isEditing && formik.touched.lastName && formik.errors.lastName && (
+                    <p className="text-[10px] text-red-500 mt-1">{formik.errors.lastName}</p>
                   )}
                 </div>
                 <div>
@@ -330,23 +484,50 @@ const LeadDetailDrawer: React.FC<LeadDetailDrawerProps> = ({
                     Betreuer
                   </label>
                   {isEditing ? (
-                    <input
-                      className="w-full text-sm font-medium border-gray-200 rounded-lg p-2"
-                      value={editedLead.ownerName}
-                      onChange={(e) => setEditedLead({ ...editedLead, ownerName: e.target.value })}
-                    />
+                    <select
+                      name="ownerName"
+                      className="w-full text-sm font-medium border-gray-200 rounded-lg p-2 bg-white"
+                      value={formik.values.ownerName}
+                      onChange={formik.handleChange}
+                      onBlur={formik.handleBlur}
+                    >
+                      <option value="" disabled>
+                        {lang === "de" ? "Bitte wählen..." : "Please select..."}
+                      </option>
+                      {owners.map((owner) => (
+                        <option key={owner.id} value={owner.name}>
+                          {owner.name}
+                        </option>
+                      ))}
+                    </select>
                   ) : (
                     <p className="text-gray-900 font-medium">{lead.ownerName}</p>
+                  )}
+                  {isEditing && formik.touched.ownerName && formik.errors.ownerName && (
+                    <p className="text-[10px] text-red-500 mt-1">{formik.errors.ownerName}</p>
                   )}
                 </div>
                 <div>
                   <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-1">
                     {t.header.projects}
                   </label>
-                  <p className="text-gray-900 font-medium flex items-center">
-                    <FolderKanban size={14} className="inline mr-2 text-blue-500" />
-                    {currentProject ? currentProject.title : "Kein Projekt zugeordnet"}
-                  </p>
+                  <div className="text-gray-900 font-medium flex items-start">
+                    {projectDisplayItems.length > 0 ? (
+                      <div className="text-[13px] leading-5 space-y-1">
+                        {projectDisplayItems.map((projectTitle) => (
+                          <div key={projectTitle} className="flex items-center text-gray-700">
+                            <FolderKanban size={13} className="mr-2 text-blue-500 shrink-0" />
+                            <span>{projectTitle}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-[13px] text-gray-500 flex items-center">
+                        <FolderKanban size={13} className="mr-2 text-blue-500 shrink-0" />
+                        Kein Projekt zugeordnet
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -356,7 +537,7 @@ const LeadDetailDrawer: React.FC<LeadDetailDrawerProps> = ({
               <h3 className="text-sm font-bold text-indigo-800 mb-4 flex items-center">
                 <CheckCircle2 size={16} className="mr-2" /> {t.common.linkedTodos} ({leadTodos.length})
               </h3>
-              <div className="space-y-2">
+              <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
                 {leadTodos.length > 0 ? (
                   leadTodos.map((todo) => (
                     <div
@@ -394,7 +575,7 @@ const LeadDetailDrawer: React.FC<LeadDetailDrawerProps> = ({
               <h3 className="text-sm font-bold text-emerald-800 mb-4 flex items-center">
                 <Award size={16} className="mr-2" /> {t.deal.overview} ({leadDeals.length})
               </h3>
-              <div className="space-y-3">
+              <div className="space-y-3 max-h-56 overflow-y-auto pr-1">
                 {leadDeals.length > 0 ? (
                   leadDeals.map((deal) => (
                     <div
@@ -452,13 +633,14 @@ const LeadDetailDrawer: React.FC<LeadDetailDrawerProps> = ({
                   {isEditing ? (
                     <input
                       type="date"
+                      name="birthday"
                       className="flex-1 text-sm p-1"
-                      value={editedLead.birthday || ""}
-                      onChange={(e) => setEditedLead({ ...editedLead, birthday: e.target.value })}
+                      value={formik.values.birthday || ""}
+                      onChange={formik.handleChange}
                     />
                   ) : (
                     <span className="text-gray-900 font-medium">
-                      {lead.birthday ? new Date(lead.birthday).toLocaleDateString(locale) : "Nicht angegeben"}
+                      {formatDateOrFallback(lead.birthday)}
                     </span>
                   )}
                 </div>
@@ -468,12 +650,17 @@ const LeadDetailDrawer: React.FC<LeadDetailDrawerProps> = ({
                   {isEditing ? (
                     <input
                       type="email"
+                      name="email"
                       className="flex-1 text-sm p-1"
-                      value={editedLead.email || ""}
-                      onChange={(e) => setEditedLead({ ...editedLead, email: e.target.value })}
+                      value={formik.values.email || ""}
+                      onChange={formik.handleChange}
+                      onBlur={formik.handleBlur}
                     />
                   ) : (
                     <span className="text-gray-900 font-medium">{lead.email || "Nicht angegeben"}</span>
+                  )}
+                  {isEditing && formik.touched.email && formik.errors.email && (
+                    <p className="text-[10px] text-red-500 ml-2">{formik.errors.email}</p>
                   )}
                 </div>
 
@@ -481,93 +668,133 @@ const LeadDetailDrawer: React.FC<LeadDetailDrawerProps> = ({
                   <label className="text-[10px] font-bold text-gray-400 uppercase mb-2 block">
                     Social Media Profile
                   </label>
-                  <div className="flex flex-wrap gap-4">
-                    <div className="flex items-center space-x-2">
-                      <Linkedin size={18} className={lead.linkedinUrl ? "text-blue-700" : "text-gray-300"} />
-                      {isEditing ? (
-                        <input
-                          className="text-xs border rounded p-1"
-                          value={editedLead.linkedinUrl || ""}
-                          placeholder="LinkedIn URL"
-                          onChange={(e) => setEditedLead({ ...editedLead, linkedinUrl: e.target.value })}
-                        />
-                      ) : (
-                        lead.linkedinUrl && (
+                  {isEditing ? (
+                    <div className="space-y-2">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <Linkedin size={18} className="text-blue-700" />
+                          <input
+                            name="linkedinUrl"
+                            className="flex-1 text-xs border rounded p-1"
+                            value={formik.values.linkedinUrl || ""}
+                            placeholder="LinkedIn URL"
+                            onChange={formik.handleChange}
+                            onBlur={formik.handleBlur}
+                          />
+                        </div>
+                        {formik.touched.linkedinUrl && formik.errors.linkedinUrl && (
+                          <p className="text-[10px] text-red-500 mt-1 ml-6">{formik.errors.linkedinUrl}</p>
+                        )}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <Facebook size={18} className="text-blue-600" />
+                          <input
+                            name="facebookUrl"
+                            className="flex-1 text-xs border rounded p-1"
+                            value={formik.values.facebookUrl || ""}
+                            placeholder="Facebook URL"
+                            onChange={formik.handleChange}
+                            onBlur={formik.handleBlur}
+                          />
+                        </div>
+                        {formik.touched.facebookUrl && formik.errors.facebookUrl && (
+                          <p className="text-[10px] text-red-500 mt-1 ml-6">{formik.errors.facebookUrl}</p>
+                        )}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <Instagram size={18} className="text-pink-600" />
+                          <input
+                            name="instagramUrl"
+                            className="flex-1 text-xs border rounded p-1"
+                            value={formik.values.instagramUrl || ""}
+                            placeholder="Instagram URL"
+                            onChange={formik.handleChange}
+                            onBlur={formik.handleBlur}
+                          />
+                        </div>
+                        {formik.touched.instagramUrl && formik.errors.instagramUrl && (
+                          <p className="text-[10px] text-red-500 mt-1 ml-6">{formik.errors.instagramUrl}</p>
+                        )}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <Music size={18} className="text-black" />
+                          <input
+                            name="tiktokUrl"
+                            className="flex-1 text-xs border rounded p-1"
+                            value={formik.values.tiktokUrl || ""}
+                            placeholder="TikTok URL"
+                            onChange={formik.handleChange}
+                            onBlur={formik.handleBlur}
+                          />
+                        </div>
+                        {formik.touched.tiktokUrl && formik.errors.tiktokUrl && (
+                          <p className="text-[10px] text-red-500 mt-1 ml-6">{formik.errors.tiktokUrl}</p>
+                        )}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <Twitter size={18} className="text-blue-400" />
+                          <input
+                            name="twitterUrl"
+                            className="flex-1 text-xs border rounded p-1"
+                            value={formik.values.twitterUrl || ""}
+                            placeholder="X URL"
+                            onChange={formik.handleChange}
+                            onBlur={formik.handleBlur}
+                          />
+                        </div>
+                        {formik.touched.twitterUrl && formik.errors.twitterUrl && (
+                          <p className="text-[10px] text-red-500 mt-1 ml-6">{formik.errors.twitterUrl}</p>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap gap-4">
+                      <div className="flex items-center space-x-2">
+                        <Linkedin size={18} className={lead.linkedinUrl ? "text-blue-700" : "text-gray-300"} />
+                        {lead.linkedinUrl && (
                           <a href={lead.linkedinUrl} target="_blank" className="text-xs text-blue-600 hover:underline">
                             Profil
                           </a>
-                        )
-                      )}
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Facebook size={18} className={lead.facebookUrl ? "text-blue-600" : "text-gray-300"} />
-                      {isEditing ? (
-                        <input
-                          className="text-xs border rounded p-1"
-                          value={editedLead.facebookUrl || ""}
-                          placeholder="Facebook URL"
-                          onChange={(e) => setEditedLead({ ...editedLead, facebookUrl: e.target.value })}
-                        />
-                      ) : (
-                        lead.facebookUrl && (
+                        )}
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Facebook size={18} className={lead.facebookUrl ? "text-blue-600" : "text-gray-300"} />
+                        {lead.facebookUrl && (
                           <a href={lead.facebookUrl} target="_blank" className="text-xs text-blue-600 hover:underline">
                             Profil
                           </a>
-                        )
-                      )}
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Instagram size={18} className={lead.instagramUrl ? "text-pink-600" : "text-gray-300"} />
-                      {isEditing ? (
-                        <input
-                          className="text-xs border rounded p-1"
-                          value={editedLead.instagramUrl || ""}
-                          placeholder="Instagram URL"
-                          onChange={(e) => setEditedLead({ ...editedLead, instagramUrl: e.target.value })}
-                        />
-                      ) : (
-                        lead.instagramUrl && (
+                        )}
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Instagram size={18} className={lead.instagramUrl ? "text-pink-600" : "text-gray-300"} />
+                        {lead.instagramUrl && (
                           <a href={lead.instagramUrl} target="_blank" className="text-xs text-blue-600 hover:underline">
                             Profil
                           </a>
-                        )
-                      )}
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Music size={18} className={lead.tiktokUrl ? "text-black" : "text-gray-300"} />
-                      {isEditing ? (
-                        <input
-                          className="text-xs border rounded p-1"
-                          value={editedLead.tiktokUrl || ""}
-                          placeholder="TikTok URL"
-                          onChange={(e) => setEditedLead({ ...editedLead, tiktokUrl: e.target.value })}
-                        />
-                      ) : (
-                        lead.tiktokUrl && (
+                        )}
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Music size={18} className={lead.tiktokUrl ? "text-black" : "text-gray-300"} />
+                        {lead.tiktokUrl && (
                           <a href={lead.tiktokUrl} target="_blank" className="text-xs text-blue-600 hover:underline">
                             Profil
                           </a>
-                        )
-                      )}
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Twitter size={18} className={lead.twitterUrl ? "text-blue-400" : "text-gray-300"} />
-                      {isEditing ? (
-                        <input
-                          className="text-xs border rounded p-1"
-                          value={editedLead.twitterUrl || ""}
-                          placeholder="X URL"
-                          onChange={(e) => setEditedLead({ ...editedLead, twitterUrl: e.target.value })}
-                        />
-                      ) : (
-                        lead.twitterUrl && (
+                        )}
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Twitter size={18} className={lead.twitterUrl ? "text-blue-400" : "text-gray-300"} />
+                        {lead.twitterUrl && (
                           <a href={lead.twitterUrl} target="_blank" className="text-xs text-blue-600 hover:underline">
                             Profil
                           </a>
-                        )
-                      )}
+                        )}
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -593,7 +820,7 @@ const LeadDetailDrawer: React.FC<LeadDetailDrawerProps> = ({
                   </button>
                 </div>
               </form>
-              <div className="space-y-4">
+              <div className="space-y-4 max-h-64 overflow-y-auto pr-1">
                 {[...lead.comments].reverse().map((comment) => (
                   <div
                     key={comment.id}
@@ -618,7 +845,8 @@ const LeadDetailDrawer: React.FC<LeadDetailDrawerProps> = ({
                         </button>
                         <button
                           onClick={() => {
-                            if (window.confirm("Löschen?")) onDeleteComment?.(comment.id);
+                            setCommentToDeleteId(comment.id);
+                            setIsCommentDeleteModalOpen(true);
                           }}
                           className="p-1 text-gray-400 hover:text-red-500"
                         >
@@ -736,6 +964,35 @@ const LeadDetailDrawer: React.FC<LeadDetailDrawerProps> = ({
           </div>
         </div>
       </div>
+      <ConfirmDeleteModal
+        isOpen={isDeleteModalOpen}
+        title={lang === "de" ? "Lead löschen" : "Delete lead"}
+        description={
+          lang === "de"
+            ? "Möchten Sie diesen Lead wirklich löschen? Dieser Vorgang kann nicht rückgängig gemacht werden."
+            : "Are you sure you want to delete this lead? This action cannot be undone."
+        }
+        confirmLabel={t.common.delete}
+        cancelLabel={t.common.cancel}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setIsDeleteModalOpen(false)}
+      />
+      <ConfirmDeleteModal
+        isOpen={isCommentDeleteModalOpen}
+        title={lang === "de" ? "Kommentar löschen" : "Delete comment"}
+        description={
+          lang === "de"
+            ? "Möchten Sie diesen Kommentar wirklich löschen?"
+            : "Are you sure you want to delete this comment?"
+        }
+        confirmLabel={t.common.delete}
+        cancelLabel={t.common.cancel}
+        onConfirm={handleConfirmDeleteComment}
+        onCancel={() => {
+          setCommentToDeleteId(null);
+          setIsCommentDeleteModalOpen(false);
+        }}
+      />
     </div>
   );
 };

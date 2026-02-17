@@ -1,24 +1,56 @@
-import React, { useState, useMemo } from "react";
+import React, { useMemo, useState } from "react";
+import { useFormik } from "formik";
 import { X, Save, FolderPlus, Search, Check, User } from "lucide-react";
-import { Lead, Project, Owner } from "../types";
+import * as Yup from "yup";
+import { Lead } from "../types";
+import { CreateProjectPayload } from "../store/slices/projectSlice";
 import { translations, Language } from "../translations";
 
 interface ProjectModalProps {
   leads: Lead[];
-  owners: Owner[];
+  owners: Array<{ id: string; name: string; role?: string }>;
   onClose: () => void;
-  onSave: (project: Omit<Project, "id" | "createdAt">, leadIds: string[]) => void;
+  onSave: (project: CreateProjectPayload) => void;
   lang?: Language;
 }
 
 const ProjectModal: React.FC<ProjectModalProps> = ({ leads, owners, onClose, onSave, lang = "de" }) => {
   const t = useMemo(() => translations[lang], [lang]);
 
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [managerName, setManagerName] = useState(owners[0]?.name || "");
   const [selectedLeadIds, setSelectedLeadIds] = useState<string[]>([]);
   const [leadSearch, setLeadSearch] = useState("");
+
+  const validationSchema = useMemo(
+    () =>
+      Yup.object({
+        title: Yup.string()
+          .trim()
+          .required(lang === "de" ? "Projekttitel ist erforderlich" : "Project title is required"),
+        projectManagerId: Yup.string()
+          .trim()
+          .required(lang === "de" ? "Projektmanager ist erforderlich" : "Project manager is required"),
+        description: Yup.string().trim()
+      }),
+    [lang]
+  );
+
+  const formik = useFormik({
+    enableReinitialize: true,
+    initialValues: {
+      title: "",
+      description: "",
+      projectManagerId: owners[0]?.id || ""
+    },
+    validationSchema,
+    onSubmit: (values) => {
+      onSave({
+        title: values.title.trim(),
+        description: values.description?.trim() || undefined,
+        projectManagerId: values.projectManagerId,
+        leadIds: selectedLeadIds
+      });
+    }
+  });
 
   const handleToggleLead = (id: string) => {
     setSelectedLeadIds((prev) => (prev.includes(id) ? prev.filter((lid) => lid !== id) : [...prev, id]));
@@ -27,13 +59,6 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ leads, owners, onClose, onS
   const filteredLeads = leads.filter((l) =>
     `${l.firstName} ${l.lastName} ${l.company || ""}`.toLowerCase().includes(leadSearch.toLowerCase())
   );
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!title.trim() || !managerName) return;
-    onSave({ title, description, managerName }, selectedLeadIds);
-    onClose();
-  };
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
@@ -49,7 +74,7 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ leads, owners, onClose, onS
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-8">
+        <form onSubmit={formik.handleSubmit} className="p-8">
           <div className="space-y-6">
             <div>
               <label className="block text-xs font-bold text-gray-500 uppercase mb-2 tracking-wider">
@@ -59,11 +84,16 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ leads, owners, onClose, onS
                 required
                 autoFocus
                 type="text"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
+                name="title"
+                value={formik.values.title}
+                onChange={formik.handleChange}
+                onBlur={formik.handleBlur}
                 placeholder={t.myProjects.placeholder}
                 className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm"
               />
+              {formik.touched.title && formik.errors.title && (
+                <p className="mt-1 text-xs text-red-500">{formik.errors.title}</p>
+              )}
             </div>
 
             <div>
@@ -76,20 +106,25 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ leads, owners, onClose, onS
                 </div>
                 <select
                   required
-                  value={managerName}
-                  onChange={(e) => setManagerName(e.target.value)}
+                  name="projectManagerId"
+                  value={formik.values.projectManagerId}
+                  onChange={formik.handleChange}
+                  onBlur={formik.handleBlur}
                   className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm appearance-none"
                 >
                   <option value="" disabled>
                     {lang === "de" ? "Teammitglied wählen" : "Select team member"}
                   </option>
                   {owners.map((owner) => (
-                    <option key={owner.id} value={owner.name}>
-                      {owner.name} ({owner.role})
+                    <option key={owner.id} value={owner.id}>
+                      {owner.name} {owner.role ? `(${owner.role})` : ""}
                     </option>
                   ))}
                 </select>
               </div>
+              {formik.touched.projectManagerId && formik.errors.projectManagerId && (
+                <p className="mt-1 text-xs text-red-500">{formik.errors.projectManagerId}</p>
+              )}
             </div>
 
             <div>
@@ -97,8 +132,10 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ leads, owners, onClose, onS
                 {lang === "de" ? "Kurzbeschreibung" : "Short Description"}
               </label>
               <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
+                name="description"
+                value={formik.values.description}
+                onChange={formik.handleChange}
+                onBlur={formik.handleBlur}
                 placeholder={t.myProjects.descPlaceholder}
                 className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm min-h-[80px] resize-none"
               />

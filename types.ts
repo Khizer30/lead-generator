@@ -124,7 +124,11 @@ export interface Lead {
   createdAt: string;
   updatedAt: string;
   comments: Comment[];
+  commentCount?: number;
   files: LeadFile[];
+  deals?: Deal[];
+  linkedTodos?: Todo[];
+  availableProjects?: Project[];
 }
 
 export interface Deal {

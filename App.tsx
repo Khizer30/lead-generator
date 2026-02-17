@@ -1,18 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { DndContext, DragEndEvent, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
-import {
-  Lead,
-  PipelineStage,
-  SortField,
-  SortOrder,
-  LeadFile,
-  Owner,
-  Task,
-  Todo,
-  Project,
-  UserSettings,
-  Deal
-} from "./types";
+import { Lead, PipelineStage, SortField, SortOrder, LeadFile, Owner, Task, Todo, Project, UserSettings, Deal, DealType } from "./types";
 import { api } from "./services/api";
 import KanbanBoard from "./components/KanbanBoard";
 import LeadDetailDrawer from "./components/LeadDetailDrawer";
@@ -22,6 +10,7 @@ import ShareModal from "./components/ShareModal";
 import TrashBin from "./components/TrashBin";
 import TaskModal from "./components/TaskModal";
 import DealModal from "./components/DealModal";
+import { DealModalSubmitPayload } from "./components/DealModal";
 import TodoDashboard from "./components/TodoDashboard";
 import SentTasksDashboard from "./components/SentTasksDashboard";
 import MyProjectsDashboard from "./components/MyProjectsDashboard";
@@ -30,6 +19,7 @@ import EmailSettingsDashboard from "./components/EmailSettingsDashboard";
 import UserManagementDashboard from "./components/UserManagementDashboard";
 import AnalyticsDashboard from "./components/AnalyticsDashboard";
 import TrashModal from "./components/TrashModal";
+import Toast from "./components/Toast";
 import { translations, Language } from "./translations";
 import {
   Plus,
@@ -56,8 +46,20 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import * as XLSX from "xlsx";
-import { useAppDispatch } from "./store/hooks";
+import { useAppDispatch, useAppSelector } from "./store/hooks";
 import { signOutLocal } from "./store/slices/authSlice";
+import {
+  createLead as createLeadAction,
+  deleteLead as deleteLeadAction,
+  getLeadById as getLeadByIdAction,
+  getLeads as getLeadsAction,
+  updateLead as updateLeadAction
+} from "./store/actions/leadActions";
+import { getUsers } from "./store/actions/userActions";
+import { createDeal as createDealApiAction } from "./store/actions/dealActions";
+import { createProject as createProjectApiAction, getProjects as getProjectsAction } from "./store/actions/projectActions";
+import { CreateProjectPayload } from "./store/slices/projectSlice";
+import { createComment as createCommentAction } from "./store/actions/commentActions";
 
 
 type ViewType =
@@ -86,6 +88,11 @@ const App: React.FC = () => {
   const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [isTrashModalOpen, setIsTrashModalOpen] = useState(false);
+  const [toastState, setToastState] = useState<{ open: boolean; type: "success" | "error" | "info"; message: string }>({
+    open: false,
+    type: "info",
+    message: ""
+  });
 
   const [closingLead, setClosingLead] = useState<Lead | null>(null);
   const [taskingOwner, setTaskingOwner] = useState<Owner | null>(null);
@@ -97,19 +104,212 @@ const App: React.FC = () => {
   const [projectFilter, setProjectFilter] = useState("All");
   const [sortField, setSortField] = useState<SortField>("createdAt");
   const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
+  const users = useAppSelector((state) => state.users.users);
+  const projectRecords = useAppSelector((state) => state.projects.projects);
+  const authUser = useAppSelector((state) => state.auth.user);
+  const usersListStatus = useAppSelector((state) => state.users.listStatus);
+  const usersError = useAppSelector((state) => state.users.error);
+  const leadRecords = useAppSelector((state) => state.leads.leads);
+  const leadsListStatus = useAppSelector((state) => state.leads.listStatus);
+  const leadsError = useAppSelector((state) => state.leads.error);
+  const currentLang = useMemo(() => userSettings?.language || "de", [userSettings]);
+  const t = useMemo(() => translations[currentLang], [currentLang]);
 
   useEffect(() => {
     fetchData();
+    dispatch(getUsers({ page: 1, limit: 200 }));
+    dispatch(getProjectsAction({ page: 1, limit: 200 }));
     if ("Notification" in window) {
       Notification.requestPermission();
     }
-  }, []);
+  }, [dispatch]);
+
+  useEffect(() => {
+    if (activeView !== "pipeline") return;
+    const ownerId = ownerFilter === "All" ? undefined : users.find((user) => user.name === ownerFilter)?.id;
+    const params = {
+      search: search.trim() || undefined,
+      ownerId,
+      projectId: projectFilter === "All" ? undefined : projectFilter,
+      orderBy: sortField,
+      page: 1,
+      limit: 200
+    };
+    console.log("[Dashboard] getLeads params", params);
+    dispatch(getLeadsAction(params));
+  }, [activeView, dispatch, search, ownerFilter, projectFilter, sortField, users]);
+
+  useEffect(() => {
+    if (!isModalOpen) return;
+    console.log("[LeadModal] fetching owners from users API for dropdown");
+    dispatch(getUsers({ page: 1, limit: 100 }));
+  }, [dispatch, isModalOpen]);
+
+  useEffect(() => {
+    if (!isProjectModalOpen) return;
+    console.log("[ProjectModal] fetching users API for project manager dropdown");
+    dispatch(getUsers({ page: 1, limit: 200 }));
+  }, [dispatch, isProjectModalOpen]);
+
+  useEffect(() => {
+    if (!closingLead) return;
+    console.log("[DealModal] fetching owners from users API for dropdown");
+    dispatch(getUsers({ page: 1, limit: 200 }));
+  }, [closingLead, dispatch]);
+
+  useEffect(() => {
+    if (usersError) {
+      console.error("[LeadModal] users fetch error", usersError);
+    }
+  }, [usersError]);
+
+  useEffect(() => {
+    if (leadsError) {
+      console.error("[Dashboard] leads fetch error", leadsError);
+    }
+  }, [leadsError]);
+
+  useEffect(() => {
+    if (usersListStatus === "loading") console.log("[LeadModal] users loading");
+    if (usersListStatus === "succeeded") console.log("[LeadModal] users loaded", users.length);
+  }, [users.length, usersListStatus]);
+
+  useEffect(() => {
+    if (leadsListStatus === "loading") console.log("[Dashboard] leads loading");
+    if (leadsListStatus === "succeeded") console.log("[Dashboard] leads loaded", leadRecords.length);
+  }, [leadRecords.length, leadsListStatus]);
+
+  useEffect(() => {
+    const ownerMap = new Map(users.map((user) => [user.id, user.name]));
+    const notFoundText = currentLang === "de" ? "Nicht gefunden" : "Not found";
+    const getCommentCount = (record: { commentCount?: number | string; comments?: unknown[] }) => {
+      if (typeof record.commentCount === "number") return record.commentCount;
+      if (typeof record.commentCount === "string") {
+        const parsed = Number(record.commentCount);
+        return Number.isNaN(parsed) ? 0 : parsed;
+      }
+      if (Array.isArray(record.comments)) return record.comments.length;
+      return 0;
+    };
+    const statusToPipeline = (status?: string): PipelineStage => {
+      if (status === "CONTACTED") return PipelineStage.CONTACTED;
+      if (status === "QUALIFIED") return PipelineStage.QUALIFIED;
+      if (status === "NEGOTIATION") return PipelineStage.NEGOTIATION;
+      if (status === "CLOSED") return PipelineStage.CLOSED;
+      return PipelineStage.IDENTIFIED;
+    };
+
+    const mappedLeads: Lead[] = leadRecords.map((record) => ({
+      id: record.id,
+      firstName: record.firstName || notFoundText,
+      lastName: record.lastName || notFoundText,
+      currentPosition: record.position || notFoundText,
+      company: record.company || notFoundText,
+      linkedinUrl: record.socialLinks?.linkedin || "",
+      facebookUrl: record.socialLinks?.facebook || "",
+      instagramUrl: record.socialLinks?.instagram || "",
+      tiktokUrl: record.socialLinks?.tiktok || "",
+      twitterUrl: record.socialLinks?.twitter || "",
+      ownerName: ownerMap.get(record.ownerId) || notFoundText,
+      phone: record.phone || notFoundText,
+      email: record.email || notFoundText,
+      birthday: record.birthday || "",
+      pipelineStage: statusToPipeline(record.status),
+      projectId: record.projectId,
+      createdAt: record.createdAt || "",
+      updatedAt: record.updatedAt || record.createdAt || "",
+      commentCount: getCommentCount(record as { commentCount?: number | string; comments?: unknown[] }),
+      comments: [],
+      files: []
+    }));
+
+    setLeads(mappedLeads);
+  }, [currentLang, leadRecords, users]);
+
+  const mapStatusToPipeline = (status?: string): PipelineStage => {
+    if (status === "CONTACTED") return PipelineStage.CONTACTED;
+    if (status === "QUALIFIED") return PipelineStage.QUALIFIED;
+    if (status === "NEGOTIATION") return PipelineStage.NEGOTIATION;
+    if (status === "CLOSED") return PipelineStage.CLOSED;
+    return PipelineStage.IDENTIFIED;
+  };
+
+  const buildUiLeadFromRecord = useCallback(
+    (
+      record: {
+        id: string;
+        ownerId: string;
+        firstName: string;
+        lastName: string;
+        position: string;
+        company?: string;
+        email?: string;
+        phone?: string;
+        birthday?: string;
+        socialLinks?: Record<string, string>;
+        status: string;
+        projectId?: string;
+        createdAt?: string;
+        updatedAt?: string;
+        commentCount?: number | string;
+        comments?: unknown[];
+      },
+      fallback?: Lead
+    ): Lead => {
+      const notFoundText = currentLang === "de" ? "Nicht gefunden" : "Not found";
+      const ownerName = users.find((user) => user.id === record.ownerId)?.name || fallback?.ownerName || notFoundText;
+      return {
+        id: record.id,
+        firstName: record.firstName || notFoundText,
+        lastName: record.lastName || notFoundText,
+        currentPosition: record.position || notFoundText,
+        company: record.company || notFoundText,
+        linkedinUrl: record.socialLinks?.linkedin || "",
+        facebookUrl: record.socialLinks?.facebook || "",
+        instagramUrl: record.socialLinks?.instagram || "",
+        tiktokUrl: record.socialLinks?.tiktok || "",
+        twitterUrl: record.socialLinks?.twitter || "",
+        ownerName,
+        phone: record.phone || notFoundText,
+        email: record.email || notFoundText,
+        birthday: record.birthday || "",
+        pipelineStage: mapStatusToPipeline(record.status),
+        projectId: record.projectId,
+        createdAt: record.createdAt || "",
+        updatedAt: record.updatedAt || record.createdAt || "",
+        commentCount:
+          typeof record.commentCount === "number"
+            ? record.commentCount
+            : typeof record.commentCount === "string"
+              ? Number(record.commentCount) || 0
+              : Array.isArray(record.comments)
+                ? record.comments.length
+                : fallback?.commentCount || fallback?.comments.length || 0,
+        comments: fallback?.comments || [],
+        files: fallback?.files || []
+      };
+    },
+    [currentLang, users]
+  );
+
+  const mapApiCommentToUi = useCallback(
+    (comment: { id: string; leadId: string; userId: string; text: string; createdAt?: string }) => {
+      const authorName = users.find((user) => user.id === comment.userId)?.name || authUser?.name || "Unknown";
+      return {
+        id: comment.id,
+        leadId: comment.leadId,
+        author: authorName,
+        text: comment.text,
+        createdAt: comment.createdAt || comment.date || new Date().toISOString()
+      };
+    },
+    [authUser?.name, users]
+  );
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [leadsData, ownersData, todosData, tasksData, projectsData, settingsData, dealsData] = await Promise.all([
-        api.getLeads(),
+      const [ownersData, todosData, tasksData, projectsData, settingsData, dealsData] = await Promise.all([
         api.getOwners(),
         api.getTodos(),
         api.getTasks(),
@@ -117,7 +317,6 @@ const App: React.FC = () => {
         api.getSettings(),
         api.getDeals()
       ]);
-      setLeads(leadsData);
       setOwners(ownersData);
       setTodos(todosData);
       setTasks(tasksData);
@@ -131,20 +330,32 @@ const App: React.FC = () => {
     }
   };
 
-  const currentLang = useMemo(() => userSettings?.language || "de", [userSettings]);
-
-  const t = useMemo(() => {
-    return translations[currentLang];
-  }, [currentLang]);
-
   const uniqueOwners = useMemo(() => {
-    return Array.from(new Set(owners.map((o) => o.name))).sort();
-  }, [owners]);
+    return Array.from(new Set(users.map((u) => u.name))).sort();
+  }, [users]);
+
+  const projectOptions = useMemo(() => {
+    if (!projectRecords.length) return projects;
+    return projectRecords.map((project) => ({
+      id: project.id,
+      title: project.title,
+      description: project.description || "",
+      managerName:
+        project.projectManagerName || users.find((user) => user.id === project.projectManagerId)?.name || "",
+      createdAt: project.createdAt || ""
+    }));
+  }, [projectRecords, projects, users]);
 
   const trashedLeadsCount = useMemo(() => leads.filter((l) => l.pipelineStage === PipelineStage.TRASH).length, [leads]);
 
   const handleExport = () => {
     if (leads.length === 0) return;
+    const notFoundText = currentLang === "de" ? "Nicht gefunden" : "Not found";
+    const safeDate = (value?: string) => {
+      if (!value) return notFoundText;
+      const parsed = new Date(value);
+      return Number.isNaN(parsed.getTime()) ? notFoundText : parsed.toLocaleDateString();
+    };
     const exportData = leads.map((l) => ({
       ID: l.id,
       Vorname: l.firstName,
@@ -154,8 +365,8 @@ const App: React.FC = () => {
       Betreuer: l.ownerName,
       Status: l.pipelineStage,
       Projekt:
-        projects.find((p) => p.id === l.projectId)?.title || (currentLang === "de" ? "Kein Projekt" : "No Project"),
-      Datum: new Date(l.createdAt).toLocaleDateString()
+        projectOptions.find((p) => p.id === l.projectId)?.title || (currentLang === "de" ? "Kein Projekt" : "No Project"),
+      Datum: safeDate(l.createdAt)
     }));
     const worksheet = XLSX.utils.json_to_sheet(exportData);
     const workbook = XLSX.utils.book_new();
@@ -171,9 +382,63 @@ const App: React.FC = () => {
     }
   }, []);
 
-  const handleSaveDeal = async (dealData: Omit<Deal, "id" | "createdAt">) => {
+  const handleSaveDeal = async (dealData: DealModalSubmitPayload) => {
+    const currency = dealData.currency === "USD" ? "DOLLAR" : "EURO";
+    const payload = {
+      name: dealData.name,
+      leadId: dealData.leadId,
+      ownerId: dealData.ownerId,
+      projectId: dealData.projectId,
+      dealType: dealData.dealType,
+      currency,
+      totalAmount: dealData.totalAmount,
+      startDate: dealData.startDate,
+      endDate: dealData.endDate,
+      description: dealData.description
+    };
+
     try {
-      await api.saveDeal(dealData);
+      console.log("[Deal] create payload", payload);
+      const result = await dispatch(createDealApiAction(payload));
+      if (!createDealApiAction.fulfilled.match(result)) {
+        console.error("[Deal] create rejected", result);
+        setToastState({
+          open: true,
+          type: "error",
+          message:
+            (result.payload as string) ||
+            (currentLang === "de" ? "Abschluss konnte nicht erstellt werden." : "Failed to create deal.")
+        });
+        return;
+      }
+      console.log("[Deal] create success", result.payload);
+      setToastState({
+        open: true,
+        type: "success",
+        message: result.payload.message || (currentLang === "de" ? "Abschluss erfolgreich erstellt." : "Deal created successfully.")
+      });
+
+      const created = result.payload.deal;
+      const mapDealTypeToLocal = (value?: string): DealType => {
+        if (value === "ONLINE_TRADING") return DealType.ONLINE_TRAINING;
+        if (value === "OFF_SITE") return DealType.OFFSITE;
+        return DealType.CONSULTING;
+      };
+      const localDeal: Deal = {
+        id: created.id,
+        leadId: created.leadId,
+        projectId: created.projectId,
+        name: created.name,
+        type: mapDealTypeToLocal(created.dealType),
+        totalAmount: created.totalAmount,
+        currency: created.currency === "DOLLAR" ? "USD" : "EUR",
+        startDate: created.startDate,
+        endDate: created.endDate,
+        description: created.description || "",
+        createdAt: created.createdAt || new Date().toISOString()
+      };
+      setDeals((prev) => [localDeal, ...prev]);
+
       const currencySymbol = dealData.currency === "USD" ? "$" : "€";
       const notificationTitle = t.deal.notificationTitle;
       const notificationBody = t.deal.notificationBody
@@ -183,9 +448,13 @@ const App: React.FC = () => {
         .replace("{currency}", currencySymbol);
       sendPushNotification(notificationTitle, notificationBody);
       setClosingLead(null);
-      fetchData();
     } catch (error) {
       console.error("Failed to save deal:", error);
+      setToastState({
+        open: true,
+        type: "error",
+        message: error instanceof Error ? error.message : currentLang === "de" ? "Abschluss konnte nicht erstellt werden." : "Failed to create deal."
+      });
     }
   };
 
@@ -203,27 +472,121 @@ const App: React.FC = () => {
     }
   };
 
-  const handleCreateProject = async (projectData: Omit<Project, "id" | "createdAt">, leadIds: string[]) => {
+  const handleCreateProject = async (projectPayload: CreateProjectPayload) => {
     try {
-      await api.createProject(projectData, leadIds);
-      fetchData();
+      console.log("[Project] create payload", projectPayload);
+      const result = await dispatch(createProjectApiAction(projectPayload));
+      if (!createProjectApiAction.fulfilled.match(result)) {
+        console.error("[Project] create rejected", result);
+        setToastState({
+          open: true,
+          type: "error",
+          message:
+            (result.payload as string) ||
+            (currentLang === "de" ? "Projekt konnte nicht erstellt werden." : "Failed to create project.")
+        });
+        return;
+      }
+      console.log("[Project] create success", result.payload);
+      const created = result.payload.project;
+      const managerName = users.find((user) => user.id === created.projectManagerId)?.name || created.projectManagerName || "";
+      const localProject: Project = {
+        id: created.id,
+        title: created.title,
+        description: created.description || "",
+        managerName,
+        createdAt: created.createdAt || new Date().toISOString()
+      };
+      setProjects((prev) => [localProject, ...prev]);
+      setToastState({
+        open: true,
+        type: "success",
+        message: result.payload.message || (currentLang === "de" ? "Projekt erfolgreich erstellt." : "Project created successfully.")
+      });
       setIsProjectModalOpen(false);
     } catch (error) {
       console.error("Failed to create project:", error);
+      setToastState({
+        open: true,
+        type: "error",
+        message: error instanceof Error ? error.message : currentLang === "de" ? "Projekt konnte nicht erstellt werden." : "Failed to create project."
+      });
     }
   };
 
-  const handleDeleteLead = useCallback(
-    async (id: string) => {
-      try {
-        const updatedLead = await api.updateLead(id, { pipelineStage: PipelineStage.TRASH });
-        setLeads((prev) => prev.map((l) => (l.id === id ? updatedLead : l)));
-        setSelectedLead(null);
-      } catch (error) {
-        console.error("Failed to move lead to trash:", error);
+  const handleDeleteLead = useCallback(async (id: string) => {
+    console.log("[Lead] delete request", id);
+    try {
+      const result = await dispatch(deleteLeadAction(id));
+      if (deleteLeadAction.fulfilled.match(result)) {
+        console.log("[Lead] delete success", result.payload);
+        setLeads((prev) => prev.filter((lead) => lead.id !== id));
+        setSelectedLead((prev) => (prev?.id === id ? null : prev));
+      } else {
+        console.error("[Lead] delete rejected", result);
       }
+    } catch (error) {
+      console.error("[Lead] delete failed", error);
+    }
+  }, [dispatch]);
+
+  const handleLeadClick = useCallback(
+    async (lead: Lead) => {
+      console.log("[Lead] getLeadById request", lead.id);
+      try {
+        const result = await dispatch(getLeadByIdAction(lead.id));
+        if (getLeadByIdAction.fulfilled.match(result)) {
+          console.log("[Lead] getLeadById success", result.payload);
+          const detailedLead = buildUiLeadFromRecord(result.payload.lead, lead);
+          detailedLead.ownerName =
+            result.payload.owner?.name || users.find((user) => user.id === result.payload.lead.ownerId)?.name || detailedLead.ownerName;
+          detailedLead.availableProjects = (result.payload.projects || []).map((project) => ({
+            id: project.id,
+            title: project.title,
+            description: project.description || "",
+            managerName: users.find((user) => user.id === project.projectManagerId)?.name || "",
+            createdAt: ""
+          }));
+          detailedLead.deals = (result.payload.deals || []).map((deal) => ({
+            id: deal.id,
+            leadId: deal.leadId,
+            projectId: deal.projectId || undefined,
+            name: deal.name,
+            type:
+              deal.dealType === "ONLINE_TRADING"
+                ? DealType.ONLINE_TRAINING
+                : deal.dealType === "OFF_SITE"
+                  ? DealType.OFFSITE
+                  : DealType.CONSULTING,
+            totalAmount: Number(deal.totalAmount || 0),
+            currency: deal.currency === "DOLLAR" ? "USD" : deal.currency === "EURO" ? "EUR" : deal.currency,
+            startDate: deal.startDate,
+            endDate: deal.endDate,
+            description: deal.description || "",
+            createdAt: deal.createdAt || new Date().toISOString()
+          }));
+          detailedLead.linkedTodos = (result.payload.tasks || []).map((task) => ({
+            id: task.id,
+            text: task.description,
+            deadline: task.deadline,
+            isCompleted: !!task.completed,
+            createdAt: task.createdAt || new Date().toISOString(),
+            leadId: task.leadId,
+            assignedToOwnerId: task.assignedTo
+          }));
+          detailedLead.comments = (result.payload.comments || []).map((comment) => mapApiCommentToUi(comment));
+          detailedLead.commentCount = detailedLead.comments.length;
+          setSelectedLead(detailedLead);
+          setLeads((prev) => prev.map((item) => (item.id === detailedLead.id ? detailedLead : item)));
+          return;
+        }
+        console.error("[Lead] getLeadById rejected", result);
+      } catch (error) {
+        console.error("[Lead] getLeadById failed", error);
+      }
+      setSelectedLead(lead);
     },
-    [currentLang]
+    [buildUiLeadFromRecord, dispatch, mapApiCommentToUi]
   );
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -242,37 +605,145 @@ const App: React.FC = () => {
   const handleMoveLead = async (leadId: string, newStage: PipelineStage) => {
     try {
       const leadBeforeUpdate = leads.find((l) => l.id === leadId);
-      const updatedLead = await api.updateLead(leadId, { pipelineStage: newStage });
-      setLeads((prev) => prev.map((l) => (l.id === leadId ? updatedLead : l)));
-      setSelectedLead((prev) => (prev?.id === leadId ? updatedLead : prev));
+      let movedLead: Lead | null = null;
+      const statusMap: Record<PipelineStage, string> = {
+        [PipelineStage.IDENTIFIED]: "IDENTIFIED",
+        [PipelineStage.CONTACTED]: "CONTACTED",
+        [PipelineStage.QUALIFIED]: "QUALIFIED",
+        [PipelineStage.NEGOTIATION]: "NEGOTIATION",
+        [PipelineStage.CLOSED]: "CLOSED",
+        [PipelineStage.TRASH]: "IDENTIFIED"
+      };
+      const payload = {
+        leadId,
+        data: {
+          status: statusMap[newStage]
+        }
+      };
+      console.log("[Lead] drag update payload", payload);
+      const result = await dispatch(updateLeadAction(payload));
+      if (updateLeadAction.fulfilled.match(result)) {
+        console.log("[Lead] drag update success", result.payload);
+        const fallbackLead = leads.find((l) => l.id === leadId);
+        const updatedLead = buildUiLeadFromRecord(result.payload.lead, fallbackLead || undefined);
+        movedLead = updatedLead;
+        setLeads((prev) => prev.map((l) => (l.id === leadId ? updatedLead : l)));
+        setSelectedLead((prev) => (prev?.id === leadId ? updatedLead : prev));
+      } else {
+        console.error("[Lead] drag update rejected", result);
+        return;
+      }
       if (newStage === PipelineStage.CLOSED && leadBeforeUpdate?.pipelineStage !== PipelineStage.CLOSED) {
-        setClosingLead(updatedLead);
+        setClosingLead(movedLead || leadBeforeUpdate || null);
       }
     } catch (error) {
-      console.error("Failed to move lead:", error);
+      console.error("[Lead] drag update failed", error);
     }
   };
 
   const handleUpdateLead = async (updates: Partial<Lead>) => {
     if (!selectedLead) return;
+    const notFoundTokens = new Set(["Not found", "Nicht gefunden"]);
+    const clean = (value?: string) => {
+      if (!value) return undefined;
+      const trimmed = value.trim();
+      if (!trimmed || notFoundTokens.has(trimmed)) return undefined;
+      return trimmed;
+    };
+    const mergedLead = { ...selectedLead, ...updates };
+    const statusMap: Record<PipelineStage, string> = {
+      [PipelineStage.IDENTIFIED]: "IDENTIFIED",
+      [PipelineStage.CONTACTED]: "CONTACTED",
+      [PipelineStage.QUALIFIED]: "QUALIFIED",
+      [PipelineStage.NEGOTIATION]: "NEGOTIATION",
+      [PipelineStage.CLOSED]: "CLOSED",
+      [PipelineStage.TRASH]: "IDENTIFIED"
+    };
+
+    const ownerIdFromName = users.find((user) => user.name === mergedLead.ownerName)?.id;
+    const payload = {
+      leadId: selectedLead.id,
+      data: {
+        ownerId: ownerIdFromName,
+        firstName: clean(mergedLead.firstName),
+        lastName: clean(mergedLead.lastName),
+        position: clean(mergedLead.currentPosition),
+        company: clean(mergedLead.company),
+        email: clean(mergedLead.email),
+        phone: clean(mergedLead.phone),
+        birthday: clean(mergedLead.birthday),
+        socialLinks: {
+          ...(clean(mergedLead.linkedinUrl) ? { linkedin: clean(mergedLead.linkedinUrl) as string } : {}),
+          ...(clean(mergedLead.facebookUrl) ? { facebook: clean(mergedLead.facebookUrl) as string } : {}),
+          ...(clean(mergedLead.instagramUrl) ? { instagram: clean(mergedLead.instagramUrl) as string } : {}),
+          ...(clean(mergedLead.twitterUrl) ? { twitter: clean(mergedLead.twitterUrl) as string } : {}),
+          ...(clean(mergedLead.tiktokUrl) ? { tiktok: clean(mergedLead.tiktokUrl) as string } : {})
+        },
+        status: statusMap[mergedLead.pipelineStage || PipelineStage.IDENTIFIED],
+        projectId: mergedLead.projectId
+      }
+    };
+
+    if (Object.keys(payload.data.socialLinks).length === 0) {
+      delete payload.data.socialLinks;
+    }
+
+    console.log("[Lead] update payload", payload);
     try {
-      const updatedLead = await api.updateLead(selectedLead.id, updates);
-      setLeads((prev) => prev.map((l) => (l.id === selectedLead.id ? updatedLead : l)));
-      setSelectedLead(updatedLead);
+      const result = await dispatch(updateLeadAction(payload));
+      if (updateLeadAction.fulfilled.match(result)) {
+        console.log("[Lead] update success", result.payload);
+        const updatedLead = buildUiLeadFromRecord(result.payload.lead, mergedLead);
+        setLeads((prev) => prev.map((lead) => (lead.id === selectedLead.id ? updatedLead : lead)));
+        setSelectedLead(updatedLead);
+      } else {
+        console.error("[Lead] update rejected", result);
+      }
     } catch (error) {
-      console.error("Failed to update lead:", error);
+      console.error("[Lead] update failed", error);
     }
   };
 
   const handleAddComment = async (text: string) => {
     if (!selectedLead) return;
+    if (!authUser?.userId) {
+      console.error("[Comment] create failed: missing auth user id");
+      return;
+    }
     try {
-      const newComment = await api.addComment(selectedLead.id, "M. Nutzer", text);
-      const updatedLeads = leads.map((l) =>
-        l.id === selectedLead.id ? { ...l, comments: [...l.comments, newComment] } : l
+      const result = await dispatch(
+        createCommentAction({
+          userId: authUser.userId,
+          leadId: selectedLead.id,
+          text: text.trim()
+        })
       );
-      setLeads(updatedLeads);
-      setSelectedLead((prev) => (prev ? { ...prev, comments: [...prev.comments, newComment] } : null));
+      if (!createCommentAction.fulfilled.match(result)) {
+        console.error("[Comment] create rejected", result);
+        return;
+      }
+
+      const newComment = mapApiCommentToUi(result.payload.comment);
+      setLeads((prev) =>
+        prev.map((lead) =>
+          lead.id === selectedLead.id
+            ? {
+                ...lead,
+                comments: [...lead.comments, newComment],
+                commentCount: (lead.commentCount ?? lead.comments.length) + 1
+              }
+            : lead
+        )
+      );
+      setSelectedLead((prev) =>
+        prev
+          ? {
+              ...prev,
+              comments: [...prev.comments, newComment],
+              commentCount: (prev.commentCount ?? prev.comments.length) + 1
+            }
+          : null
+      );
     } catch (error) {
       console.error("Failed to add comment:", error);
     }
@@ -280,11 +751,85 @@ const App: React.FC = () => {
 
   const handleCreateLead = async (leadData: Partial<Lead>) => {
     try {
-      const newLead = await api.createLead(leadData);
-      setLeads((prev) => [...prev, newLead]);
+      const owner = users.find((u) => u.name === leadData.ownerName);
+      const statusMap: Record<PipelineStage, string> = {
+        [PipelineStage.IDENTIFIED]: "IDENTIFIED",
+        [PipelineStage.CONTACTED]: "CONTACTED",
+        [PipelineStage.QUALIFIED]: "QUALIFIED",
+        [PipelineStage.NEGOTIATION]: "NEGOTIATION",
+        [PipelineStage.CLOSED]: "CLOSED",
+        [PipelineStage.TRASH]: "IDENTIFIED"
+      };
+
+      const payload = {
+        ownerId: owner?.id || "",
+        firstName: leadData.firstName || "",
+        lastName: leadData.lastName || "",
+        position: leadData.currentPosition || "",
+        company: leadData.company || "",
+        email: leadData.email || "",
+        phone: leadData.phone || "",
+        birthday: leadData.birthday || undefined,
+        socialLinks: leadData.linkedinUrl ? { linkedin: leadData.linkedinUrl } : undefined,
+        status: statusMap[leadData.pipelineStage || PipelineStage.IDENTIFIED]
+      };
+
+      console.log("[Lead] create payload", payload);
+      const result = await dispatch(createLeadAction(payload));
+
+      if (createLeadAction.fulfilled.match(result)) {
+        console.log("[Lead] create success", result.payload);
+        setToastState({
+          open: true,
+          type: "success",
+          message: result.payload.message || (currentLang === "de" ? "Lead erfolgreich erstellt." : "Lead created successfully.")
+        });
+        const created = result.payload.lead;
+        const mapStatusToPipeline = (status?: string): PipelineStage => {
+          if (status === "CONTACTED") return PipelineStage.CONTACTED;
+          if (status === "QUALIFIED") return PipelineStage.QUALIFIED;
+          if (status === "NEGOTIATION") return PipelineStage.NEGOTIATION;
+          if (status === "CLOSED") return PipelineStage.CLOSED;
+          return PipelineStage.IDENTIFIED;
+        };
+
+        const localLead: Lead = {
+          id: created.id,
+          firstName: created.firstName || payload.firstName,
+          lastName: created.lastName || payload.lastName,
+          currentPosition: created.position || payload.position,
+          company: created.company || payload.company,
+          linkedinUrl: created.socialLinks?.linkedin || leadData.linkedinUrl || "",
+          ownerName: owner?.name || leadData.ownerName || "",
+          phone: created.phone || payload.phone,
+          email: created.email || payload.email,
+          birthday: created.birthday || payload.birthday,
+          pipelineStage: mapStatusToPipeline(created.status),
+          createdAt: created.createdAt || new Date().toISOString(),
+          updatedAt: created.updatedAt || new Date().toISOString(),
+          comments: [],
+          files: []
+        };
+
+        setLeads((prev) => [localLead, ...prev]);
+      } else {
+        console.error("[Lead] create rejected", result);
+        setToastState({
+          open: true,
+          type: "error",
+          message:
+            (result.payload as string) ||
+            (currentLang === "de" ? "Lead konnte nicht erstellt werden." : "Failed to create lead.")
+        });
+      }
       setIsModalOpen(false);
     } catch (error) {
       console.error("Failed to create lead:", error);
+      setToastState({
+        open: true,
+        type: "error",
+        message: error instanceof Error ? error.message : currentLang === "de" ? "Lead konnte nicht erstellt werden." : "Failed to create lead."
+      });
     }
   };
 
@@ -296,15 +841,23 @@ const App: React.FC = () => {
           `${l.firstName} ${l.lastName}`.toLowerCase().includes(search.toLowerCase()) ||
           l.currentPosition.toLowerCase().includes(search.toLowerCase());
         const matchesOwner = ownerFilter === "All" || l.ownerName === ownerFilter;
-        const matchesProject = projectFilter === "All" || l.projectId === projectFilter;
-        return matchesSearch && matchesOwner && matchesProject;
+        // Project filtering is performed at API level via getLeads params.
+        // Some API responses may omit projectId in list items, so avoid re-filtering client-side by projectId.
+        return matchesSearch && matchesOwner;
       })
       .sort((a, b) => {
         const valA = a[sortField] || "";
         const valB = b[sortField] || "";
         return sortOrder === "asc" ? (valA > valB ? 1 : -1) : valA < valB ? 1 : -1;
       });
-  }, [leads, search, ownerFilter, projectFilter, sortField, sortOrder]);
+  }, [leads, search, ownerFilter, sortField, sortOrder]);
+
+  const drawerProjects = useMemo(() => {
+    const merged = new Map<string, Project>();
+    projectOptions.forEach((project) => merged.set(project.id, project));
+    (selectedLead?.availableProjects || []).forEach((project) => merged.set(project.id, project));
+    return Array.from(merged.values());
+  }, [projectOptions, selectedLead?.availableProjects]);
 
   const renderMainView = () => {
     if (activeView === "analytics")
@@ -323,14 +876,14 @@ const App: React.FC = () => {
             {t.pipeline.total}: <span className="font-bold text-gray-900">{filteredLeads.length}</span> Leads
           </div>
         </div>
-        {loading ? (
+        {loading || leadsListStatus === "loading" ? (
           <div className="flex-1 flex items-center justify-center">
             <Loader2 className="animate-spin text-blue-600" size={48} />
           </div>
         ) : (
           <KanbanBoard
             leads={filteredLeads}
-            onLeadClick={setSelectedLead}
+            onLeadClick={handleLeadClick}
             onAddDeal={setClosingLead}
             lang={currentLang}
           />
@@ -462,7 +1015,7 @@ const App: React.FC = () => {
                   onChange={(e) => setProjectFilter(e.target.value)}
                 >
                   <option value="All">{t.header.allProjects}</option>
-                  {projects.map((p) => (
+                  {projectOptions.map((p) => (
                     <option key={p.id} value={p.id}>
                       {p.title}
                     </option>
@@ -527,15 +1080,17 @@ const App: React.FC = () => {
 
         <LeadDetailDrawer
           lead={selectedLead}
-          projects={projects}
+          projects={drawerProjects}
+          owners={users.map((u) => ({ id: u.id, name: u.name }))}
           onClose={() => setSelectedLead(null)}
           onUpdate={handleUpdateLead}
           onAddComment={handleAddComment}
+          onDelete={handleDeleteLead}
           lang={currentLang}
         />
         {isModalOpen && (
           <LeadModal
-            owners={owners}
+            owners={users.map((u) => ({ id: u.id, name: u.name }))}
             onClose={() => setIsModalOpen(false)}
             onSave={handleCreateLead}
             lang={currentLang}
@@ -544,7 +1099,7 @@ const App: React.FC = () => {
         {isProjectModalOpen && (
           <ProjectModal
             leads={leads}
-            owners={owners}
+            owners={users.map((u) => ({ id: u.id, name: u.name, role: u.role }))}
             lang={currentLang}
             onClose={() => setIsProjectModalOpen(false)}
             onSave={handleCreateProject}
@@ -571,11 +1126,18 @@ const App: React.FC = () => {
           <DealModal
             lead={closingLead}
             projects={projects}
+            owners={users.map((u) => ({ id: u.id, name: u.name }))}
             lang={currentLang}
             onClose={() => setClosingLead(null)}
             onSave={handleSaveDeal}
           />
         )}
+        <Toast
+          isOpen={toastState.open}
+          type={toastState.type}
+          message={toastState.message}
+          onClose={() => setToastState((prev) => ({ ...prev, open: false, message: "" }))}
+        />
       </div>
     </DndContext>
   );

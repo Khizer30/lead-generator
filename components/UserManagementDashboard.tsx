@@ -1,67 +1,77 @@
 import React, { useState, useEffect, useMemo } from "react";
 import {
-  Users,
   UserPlus,
-  Mail,
   Shield,
   CheckCircle2,
   Clock,
-  RotateCcw,
   Trash2,
   Search,
   Loader2,
-  AlertCircle,
-  Send
+  AlertCircle
 } from "lucide-react";
-import { Owner, UserStatus } from "../types";
-import { api } from "../services/api";
 import { translations, Language } from "../translations";
 import ShareModal from "./ShareModal";
+import Toast from "./Toast";
+import { useAppDispatch, useAppSelector } from "../store/hooks";
+import { deleteTeamMember, getTeamMembers } from "../store/actions/teamActions";
 
 interface UserManagementDashboardProps {
   lang: Language;
 }
 
 const UserManagementDashboard: React.FC<UserManagementDashboardProps> = ({ lang }) => {
-  const [owners, setOwners] = useState<Owner[]>([]);
-  const [loading, setLoading] = useState(true);
+  const dispatch = useAppDispatch();
+  const { members, listStatus, total, limit: apiLimit } = useAppSelector((state) => state.team);
+  const teamId = useAppSelector((state) => state.auth.user?.teamId);
   const [search, setSearch] = useState("");
-  const [resendingId, setResendingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const limit = 10;
+  const [toastState, setToastState] = useState<{ open: boolean; type: "success" | "error"; message: string }>({
+    open: false,
+    type: "success",
+    message: ""
+  });
 
   const t = useMemo(() => translations[lang], [lang]);
+  const loading = listStatus === "loading";
+  const totalPages = Math.max(1, Math.ceil(total / (apiLimit || limit)));
 
   useEffect(() => {
-    fetchData();
-  }, []);
-
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      const data = await api.getOwners();
-      setOwners(data);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleResend = async (userId: string) => {
-    setResendingId(userId);
     setError(null);
-    try {
-      await api.resendInvitation(userId);
-      fetchData();
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setResendingId(null);
-    }
-  };
+    void dispatch(getTeamMembers({ page, limit, search: search.trim() || undefined }));
+  }, [dispatch, page, search]);
 
-  const filteredOwners = owners.filter(
-    (o) => o.name.toLowerCase().includes(search.toLowerCase()) || o.email.toLowerCase().includes(search.toLowerCase())
-  );
+  useEffect(() => {
+    setPage(1);
+  }, [search]);
+
+  const handleDeleteUser = async (userId: string) => {
+    setDeletingId(userId);
+    setError(null);
+    console.log("[Team] delete member requested", { teamId, userId });
+    const action = await dispatch(deleteTeamMember({ userId }));
+    if (deleteTeamMember.fulfilled.match(action)) {
+      console.log("[Team] delete member success", action.payload);
+      setToastState({
+        open: true,
+        type: "success",
+        message: action.payload.message || "Team member deleted successfully"
+      });
+    } else {
+      const message = (action.payload as string) || "Failed to delete team member";
+      console.error("[Team] delete member failed", action);
+      setError(message);
+      setToastState({
+        open: true,
+        type: "error",
+        message
+      });
+    }
+    setDeletingId(null);
+  };
 
   return (
     <div className="flex-1 flex flex-col p-8 bg-white/50 backdrop-blur-sm rounded-3xl m-4 shadow-inner overflow-hidden">
@@ -125,83 +135,61 @@ const UserManagementDashboard: React.FC<UserManagementDashboardProps> = ({ lang 
                     <Loader2 className="animate-spin text-blue-600 mx-auto" size={32} />
                   </td>
                 </tr>
-              ) : filteredOwners.length === 0 ? (
+              ) : members.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-6 py-20 text-center italic text-gray-400 text-sm">
                     {t.userMgmt.noUsers}
                   </td>
                 </tr>
               ) : (
-                filteredOwners.map((owner) => (
-                  <tr key={owner.id} className="hover:bg-gray-50/50 transition-colors group">
+                members.map((user) => (
+                  <tr key={user.id} className="hover:bg-gray-50/50 transition-colors group">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-sm">
-                          {owner.avatar}
+                          {user.name
+                            .split(" ")
+                            .filter(Boolean)
+                            .slice(0, 2)
+                            .map((part) => part[0]?.toUpperCase() || "")
+                            .join("")}
                         </div>
                         <div>
-                          <p className="text-sm font-bold text-gray-900">{owner.name}</p>
-                          <p className="text-xs text-gray-400">{owner.email}</p>
+                          <p className="text-sm font-bold text-gray-900">{user.name}</p>
+                          <p className="text-xs text-gray-400">{user.email}</p>
                         </div>
                       </div>
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-1.5 text-xs font-semibold text-gray-600">
                         <Shield size={14} className="text-gray-300" />
-                        {owner.role}
+                        {user.role}
                       </div>
                     </td>
                     <td className="px-6 py-4">
                       <div
                         className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold border ${
-                          owner.status === UserStatus.ACTIVE
+                          user.status === "ACTIVE"
                             ? "bg-emerald-50 text-emerald-700 border-emerald-100"
-                            : owner.status === UserStatus.INVITED
-                              ? "bg-amber-50 text-amber-700 border-amber-100"
-                              : "bg-gray-50 text-gray-500 border-gray-100"
+                            : "bg-gray-50 text-gray-500 border-gray-100"
                         }`}
                       >
-                        {owner.status === UserStatus.ACTIVE ? <CheckCircle2 size={12} /> : <Clock size={12} />}
-                        {owner.status}
+                        {user.status === "ACTIVE" ? <CheckCircle2 size={12} /> : <Clock size={12} />}
+                        {user.status}
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      {owner.invitedAt ? (
-                        <div className="space-y-1">
-                          <p className="text-[10px] font-medium text-gray-600">
-                            {new Date(owner.invitedAt).toLocaleString(lang === "de" ? "de-DE" : "en-US")}
-                          </p>
-                          {owner.inviteError && (
-                            <p className="text-[9px] font-bold text-red-500 flex items-center gap-1">
-                              <AlertCircle size={10} /> {lang === "de" ? "Versand-Fehler" : "Sending Error"}
-                            </p>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="text-[10px] text-gray-300">-</span>
-                      )}
+                      <span className="text-[10px] text-gray-300">-</span>
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-2">
-                        {owner.status === UserStatus.INVITED && (
-                          <button
-                            onClick={() => handleResend(owner.id)}
-                            disabled={resendingId === owner.id}
-                            className="p-2 text-gray-400 hover:text-blue-600 hover:bg-white rounded-lg transition-all"
-                            title={t.userMgmt.resendInvite}
-                          >
-                            {resendingId === owner.id ? (
-                              <Loader2 size={16} className="animate-spin" />
-                            ) : (
-                              <Send size={16} />
-                            )}
-                          </button>
-                        )}
                         <button
+                          onClick={() => handleDeleteUser(user.id)}
+                          disabled={deletingId === user.id}
                           className="p-2 text-gray-400 hover:text-red-500 hover:bg-white rounded-lg transition-all"
-                          title={t.userMgmt.disableUser}
+                          title={t.common.delete}
                         >
-                          <Trash2 size={16} />
+                          {deletingId === user.id ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
                         </button>
                       </div>
                     </td>
@@ -213,7 +201,43 @@ const UserManagementDashboard: React.FC<UserManagementDashboardProps> = ({ lang 
         </div>
       </div>
 
-      {isInviteModalOpen && <ShareModal onClose={() => setIsInviteModalOpen(false)} onInvite={() => fetchData()} />}
+      {isInviteModalOpen && (
+        <ShareModal
+          onClose={() => setIsInviteModalOpen(false)}
+          onInvite={() => {
+            void dispatch(getTeamMembers({ page, limit, search: search.trim() || undefined }));
+          }}
+        />
+      )}
+      <div className="mt-4 flex items-center justify-between border-t border-gray-100 pt-4">
+        <p className="text-xs font-semibold text-gray-500">
+          {lang === "de" ? `Seite ${page} von ${totalPages}` : `Page ${page} of ${totalPages}`}
+        </p>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+            disabled={page <= 1 || loading}
+            className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-600 disabled:opacity-40"
+          >
+            {lang === "de" ? "Zuruck" : "Previous"}
+          </button>
+          <button
+            type="button"
+            onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+            disabled={page >= totalPages || loading}
+            className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-600 disabled:opacity-40"
+          >
+            {lang === "de" ? "Weiter" : "Next"}
+          </button>
+        </div>
+      </div>
+      <Toast
+        isOpen={toastState.open}
+        type={toastState.type}
+        message={toastState.message}
+        onClose={() => setToastState((prev) => ({ ...prev, open: false, message: "" }))}
+      />
     </div>
   );
 };

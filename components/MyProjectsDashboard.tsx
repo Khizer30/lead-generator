@@ -1,48 +1,36 @@
-import React, { useState, useEffect, useMemo } from "react";
-import { FolderKanban, Clock, Users, ChevronRight, Briefcase, Loader2, Calendar, Target, User } from "lucide-react";
-import { Project, Lead } from "../types";
-import { api } from "../services/api";
+import React, { useEffect, useMemo, useState } from "react";
+import { FolderKanban, Users, Briefcase, Loader2, Calendar, User } from "lucide-react";
 import { translations, Language } from "../translations";
+import { useAppDispatch, useAppSelector } from "../store/hooks";
+import { getProjects } from "../store/actions/projectActions";
+import { getLeads } from "../store/actions/leadActions";
 
-// Define props to accept lang from App.tsx
 interface MyProjectsDashboardProps {
   lang: Language;
 }
 
 const MyProjectsDashboard: React.FC<MyProjectsDashboardProps> = ({ lang }) => {
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [leads, setLeads] = useState<Lead[]>([]);
-  const [loading, setLoading] = useState(true);
+  const dispatch = useAppDispatch();
+  const projects = useAppSelector((state) => state.projects.projects);
+  const projectsStatus = useAppSelector((state) => state.projects.listStatus);
+  const projectsTotal = useAppSelector((state) => state.projects.total);
+  const projectsLimit = useAppSelector((state) => state.projects.limit);
+  const leads = useAppSelector((state) => state.leads.leads);
+  const leadsStatus = useAppSelector((state) => state.leads.listStatus);
+  const [page, setPage] = useState(1);
+  const limit = 10;
 
-  // Use translations based on the provided lang prop
   const t = useMemo(() => translations[lang], [lang]);
+  const loading = projectsStatus === "loading" || leadsStatus === "loading";
+  const totalPages = Math.max(1, Math.ceil(projectsTotal / (projectsLimit || limit)));
 
   useEffect(() => {
-    fetchData();
-  }, []);
-
-  const fetchData = async () => {
-    const [projectsData, leadsData] = await Promise.all([api.getProjects(), api.getLeads()]);
-    setProjects(projectsData);
-    setLeads(leadsData);
-    setLoading(false);
-  };
-
-  // Filter projects where "M. Nutzer" is a participant (owner of at least one lead) OR manager
-  const myProjects = useMemo(() => {
-    const currentUser = "M. Nutzer";
-    return projects
-      .filter((project) => {
-        return (
-          project.managerName === currentUser ||
-          leads.some((lead) => lead.projectId === project.id && lead.ownerName === currentUser)
-        );
-      })
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  }, [projects, leads]);
+    void dispatch(getProjects({ page, limit }));
+    void dispatch(getLeads({ page: 1, limit: 500 }));
+  }, [dispatch, page]);
 
   const getLeadsForProject = (projectId: string) => {
-    return leads.filter((l) => l.projectId === projectId && l.ownerName === "M. Nutzer");
+    return leads.filter((l) => l.projectId === projectId);
   };
 
   return (
@@ -57,7 +45,7 @@ const MyProjectsDashboard: React.FC<MyProjectsDashboardProps> = ({ lang }) => {
           <div className="h-full flex items-center justify-center">
             <Loader2 className="animate-spin text-blue-600" size={32} />
           </div>
-        ) : myProjects.length === 0 ? (
+        ) : projects.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-center p-8">
             <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mb-4 text-gray-200">
               <FolderKanban size={32} />
@@ -67,8 +55,9 @@ const MyProjectsDashboard: React.FC<MyProjectsDashboardProps> = ({ lang }) => {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {myProjects.map((project) => {
+            {projects.map((project) => {
               const projectLeads = getLeadsForProject(project.id);
+              const apiLeadCount = Number(project.leadCount ?? projectLeads.length);
               return (
                 <div
                   key={project.id}
@@ -79,8 +68,10 @@ const MyProjectsDashboard: React.FC<MyProjectsDashboardProps> = ({ lang }) => {
                       <Briefcase size={22} />
                     </div>
                     <div className="flex items-center gap-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                      <Calendar size={12} />
-                      {new Date(project.createdAt).toLocaleDateString(lang === "de" ? "de-DE" : "en-US")}
+                          <Calendar size={12} />
+                      {project.createdAt
+                        ? new Date(project.createdAt).toLocaleDateString(lang === "de" ? "de-DE" : "en-US")
+                        : "-"}
                     </div>
                   </div>
 
@@ -88,7 +79,7 @@ const MyProjectsDashboard: React.FC<MyProjectsDashboardProps> = ({ lang }) => {
                   <div className="flex items-center gap-2 mb-4 text-xs font-bold text-indigo-600">
                     <User size={14} />
                     <span>
-                      {t.myProjects.manager}: {project.managerName}
+                      {t.myProjects.manager}: {project.projectManagerName || "-"}
                     </span>
                   </div>
                   <p className="text-sm text-gray-500 line-clamp-2 mb-6 min-h-[40px]">
@@ -102,7 +93,7 @@ const MyProjectsDashboard: React.FC<MyProjectsDashboardProps> = ({ lang }) => {
                         <span className="text-xs font-bold text-gray-700">{t.myProjects.yourLeads}</span>
                       </div>
                       <span className="text-[10px] font-bold bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full">
-                        {projectLeads.length}
+                        {Number.isFinite(apiLeadCount) ? apiLeadCount : 0}
                       </span>
                     </div>
 
@@ -122,7 +113,7 @@ const MyProjectsDashboard: React.FC<MyProjectsDashboardProps> = ({ lang }) => {
                             </span>
                           </div>
                           <span className="text-[9px] font-bold px-1.5 py-0.5 bg-white text-gray-400 rounded-md border border-gray-100">
-                            {lead.pipelineStage}
+                            {lead.status || "IDENTIFIED"}
                           </span>
                         </div>
                       ))}
@@ -138,6 +129,29 @@ const MyProjectsDashboard: React.FC<MyProjectsDashboardProps> = ({ lang }) => {
             })}
           </div>
         )}
+      </div>
+      <div className="mt-4 flex items-center justify-between border-t border-gray-100 pt-4">
+        <p className="text-xs font-semibold text-gray-500">
+          {lang === "de" ? `Seite ${page} von ${totalPages}` : `Page ${page} of ${totalPages}`}
+        </p>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+            disabled={page <= 1 || loading}
+            className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-600 disabled:opacity-40"
+          >
+            {lang === "de" ? "Zuruck" : "Previous"}
+          </button>
+          <button
+            type="button"
+            onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+            disabled={page >= totalPages || loading}
+            className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-600 disabled:opacity-40"
+          >
+            {lang === "de" ? "Weiter" : "Next"}
+          </button>
+        </div>
       </div>
     </div>
   );
