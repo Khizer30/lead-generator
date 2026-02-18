@@ -7,7 +7,6 @@ import KanbanBoard from "./components/KanbanBoard";
 import LeadDetailDrawer from "./components/LeadDetailDrawer";
 import LeadModal from "./components/LeadModal";
 import ProjectModal from "./components/ProjectModal";
-import ShareModal from "./components/ShareModal";
 import TrashBin from "./components/TrashBin";
 import TaskModal from "./components/TaskModal";
 import DealModal from "./components/DealModal";
@@ -16,7 +15,6 @@ import TodoDashboard from "./components/TodoDashboard";
 import SentTasksDashboard from "./components/SentTasksDashboard";
 import MyProjectsDashboard from "./components/MyProjectsDashboard";
 import SettingsDashboard from "./components/SettingsDashboard";
-import EmailSettingsDashboard from "./components/EmailSettingsDashboard";
 import UserManagementDashboard from "./components/UserManagementDashboard";
 import AnalyticsPage from "./pages/AnalyticsPage";
 import TrashModal from "./components/TrashModal";
@@ -34,12 +32,8 @@ import {
   Loader2,
   UserPlus,
   Download,
-  Bell,
-  Send,
   CheckSquare,
-  ClipboardList,
   Briefcase,
-  Share2,
   FolderKanban,
   PieChart,
   ShieldCheck,
@@ -97,7 +91,6 @@ const App: React.FC = () => {
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
-  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [isTrashModalOpen, setIsTrashModalOpen] = useState(false);
   const [toastState, setToastState] = useState<{ open: boolean; type: "success" | "error" | "info"; message: string }>({
     open: false,
@@ -129,11 +122,8 @@ const App: React.FC = () => {
   const users = useAppSelector((state) => state.users.users);
   const projectRecords = useAppSelector((state) => state.projects.projects);
   const authUser = useAppSelector((state) => state.auth.user);
-  const usersListStatus = useAppSelector((state) => state.users.listStatus);
-  const usersError = useAppSelector((state) => state.users.error);
   const leadRecords = useAppSelector((state) => state.leads.leads);
   const leadsListStatus = useAppSelector((state) => state.leads.listStatus);
-  const leadsError = useAppSelector((state) => state.leads.error);
   const latestNotification = useAppSelector((state) => state.notifications.items[0]);
   const currentLang = useMemo(() => userSettings?.language || "de", [userSettings]);
   const t = useMemo(() => translations[currentLang], [currentLang]);
@@ -196,18 +186,14 @@ const App: React.FC = () => {
       page: 1,
       limit: 200
     };
-    console.log("[Dashboard] getLeads params", params);
     dispatch(getLeadsAction(params));
   }, [activeView, dispatch, ownerFilter, projectFilter, search, sortField, users]);
 
   const fetchDeletedLeads = useCallback(async () => {
     try {
       const response = await leadApi.getLeads({ status: "DELETED", page: 1, limit: 200 });
-      console.log("[Trash] fetched deleted leads", response.leads.length);
       setDeletedLeads(response.leads.map(mapLeadRecordToUi));
-    } catch (error) {
-      console.error("[Trash] failed to fetch deleted leads", error);
-    }
+    } catch {}
   }, [mapLeadRecordToUi]);
 
   useEffect(() => {
@@ -257,43 +243,18 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (!isModalOpen) return;
-    console.log("[LeadModal] fetching owners from users API for dropdown");
     dispatch(getUsers({ page: 1, limit: 100 }));
   }, [dispatch, isModalOpen]);
 
   useEffect(() => {
     if (!isProjectModalOpen) return;
-    console.log("[ProjectModal] fetching users API for project manager dropdown");
     dispatch(getUsers({ page: 1, limit: 200 }));
   }, [dispatch, isProjectModalOpen]);
 
   useEffect(() => {
     if (!closingLead) return;
-    console.log("[DealModal] fetching owners from users API for dropdown");
     dispatch(getUsers({ page: 1, limit: 200 }));
   }, [closingLead, dispatch]);
-
-  useEffect(() => {
-    if (usersError) {
-      console.error("[LeadModal] users fetch error", usersError);
-    }
-  }, [usersError]);
-
-  useEffect(() => {
-    if (leadsError) {
-      console.error("[Dashboard] leads fetch error", leadsError);
-    }
-  }, [leadsError]);
-
-  useEffect(() => {
-    if (usersListStatus === "loading") console.log("[LeadModal] users loading");
-    if (usersListStatus === "succeeded") console.log("[LeadModal] users loaded", users.length);
-  }, [users.length, usersListStatus]);
-
-  useEffect(() => {
-    if (leadsListStatus === "loading") console.log("[Dashboard] leads loading");
-    if (leadsListStatus === "succeeded") console.log("[Dashboard] leads loaded", leadRecords.length);
-  }, [leadRecords.length, leadsListStatus]);
 
   useEffect(() => {
     setLeads(leadRecords.map(mapLeadRecordToUi));
@@ -388,9 +349,7 @@ const App: React.FC = () => {
       setProjects(projectsData);
       setUserSettings(settingsData);
       setDeals(dealsData);
-    } catch (error) {
-      console.error("Failed to fetch data:", error);
-    } finally {
+    } catch {} finally {
       setLoading(false);
     }
   };
@@ -410,15 +369,6 @@ const App: React.FC = () => {
     }));
   }, [projectRecords, users]);
 
-  useEffect(() => {
-    if (projectFilter === "All") return;
-    const selectedProject = projectOptions.find((project) => project.id === projectFilter);
-    console.log("[Dashboard] selected project filter", {
-      projectId: projectFilter,
-      projectTitle: selectedProject?.title || null
-    });
-  }, [projectFilter, projectOptions]);
-
   const trashedLeadsCount = useMemo(() => deletedLeads.length, [deletedLeads]);
 
   const handleExport = useCallback(async () => {
@@ -426,10 +376,8 @@ const App: React.FC = () => {
       ownerId: ownerFilter === "All" ? undefined : users.find((user) => user.name === ownerFilter)?.id,
       projectId: projectFilter === "All" ? undefined : projectFilter
     };
-    console.log("[Dashboard] export leads params", params);
     const result = await dispatch(exportLeadsCsv(params));
     if (!exportLeadsCsv.fulfilled.match(result)) {
-      console.error("[Dashboard] export leads rejected", result);
       setToastState({
         open: true,
         type: "error",
@@ -482,10 +430,8 @@ const App: React.FC = () => {
     };
 
     try {
-      console.log("[Deal] create payload", payload);
       const result = await dispatch(createDealApiAction(payload));
       if (!createDealApiAction.fulfilled.match(result)) {
-        console.error("[Deal] create rejected", result);
         setToastState({
           open: true,
           type: "error",
@@ -495,7 +441,6 @@ const App: React.FC = () => {
         });
         return;
       }
-      console.log("[Deal] create success", result.payload);
       dispatch(
         pushLocalNotification({
           type: "DEAL_CREATED",
@@ -537,7 +482,6 @@ const App: React.FC = () => {
       sendPushNotification(notificationTitle, notificationBody);
       setClosingLead(null);
     } catch (error) {
-      console.error("Failed to save deal:", error);
       setToastState({
         open: true,
         type: "error",
@@ -555,17 +499,13 @@ const App: React.FC = () => {
         `${taskingOwner.name} ${currentLang === "de" ? "hat eine neue Aufgabe erhalten" : "received a new task"}: ${text}`
       );
       fetchData();
-    } catch (error) {
-      console.error("Failed to assign task:", error);
-    }
+    } catch {}
   };
 
   const handleCreateProject = async (projectPayload: CreateProjectPayload) => {
     try {
-      console.log("[Project] create payload", projectPayload);
       const result = await dispatch(createProjectApiAction(projectPayload));
       if (!createProjectApiAction.fulfilled.match(result)) {
-        console.error("[Project] create rejected", result);
         setToastState({
           open: true,
           type: "error",
@@ -575,7 +515,6 @@ const App: React.FC = () => {
         });
         return;
       }
-      console.log("[Project] create success", result.payload);
       const created = result.payload.project;
       const managerName = users.find((user) => user.id === created.projectManagerId)?.name || created.projectManagerName || "";
       const localProject: Project = {
@@ -593,7 +532,6 @@ const App: React.FC = () => {
       });
       setIsProjectModalOpen(false);
     } catch (error) {
-      console.error("Failed to create project:", error);
       setToastState({
         open: true,
         type: "error",
@@ -603,20 +541,14 @@ const App: React.FC = () => {
   };
 
   const handleDeleteLead = useCallback(async (id: string) => {
-    console.log("[Lead] delete request", id);
     try {
       const result = await dispatch(deleteLeadAction(id));
       if (deleteLeadAction.fulfilled.match(result)) {
-        console.log("[Lead] delete success", result.payload);
         setLeads((prev) => prev.filter((lead) => lead.id !== id));
         setSelectedLead((prev) => (prev?.id === id ? null : prev));
         await fetchDeletedLeads();
-      } else {
-        console.error("[Lead] delete rejected", result);
       }
-    } catch (error) {
-      console.error("[Lead] delete failed", error);
-    }
+    } catch {}
   }, [dispatch, fetchDeletedLeads]);
 
   const handleOpenTrashModal = useCallback(async () => {
@@ -634,25 +566,19 @@ const App: React.FC = () => {
           })
         );
         if (!updateLeadAction.fulfilled.match(result)) {
-          console.error("[Trash] restore rejected", result);
           return;
         }
-        console.log("[Trash] restore success", result.payload);
         await Promise.all([fetchDeletedLeads(), Promise.resolve(refreshActiveLeads())]);
-      } catch (error) {
-        console.error("[Trash] restore failed", error);
-      }
+      } catch {}
     },
     [dispatch, fetchDeletedLeads, refreshActiveLeads]
   );
 
   const handleLeadClick = useCallback(
     async (lead: Lead) => {
-      console.log("[Lead] getLeadById request", lead.id);
       try {
         const result = await dispatch(getLeadByIdAction(lead.id));
         if (getLeadByIdAction.fulfilled.match(result)) {
-          console.log("[Lead] getLeadById success", result.payload);
           const detailedLead = buildUiLeadFromRecord(result.payload.lead, lead);
           detailedLead.ownerName =
             result.payload.owner?.name || users.find((user) => user.id === result.payload.lead.ownerId)?.name || detailedLead.ownerName;
@@ -696,10 +622,7 @@ const App: React.FC = () => {
           setLeads((prev) => prev.map((item) => (item.id === detailedLead.id ? detailedLead : item)));
           return;
         }
-        console.error("[Lead] getLeadById rejected", result);
-      } catch (error) {
-        console.error("[Lead] getLeadById failed", error);
-      }
+      } catch {}
       setSelectedLead(lead);
     },
     [buildUiLeadFromRecord, dispatch, mapApiCommentToUi]
@@ -736,25 +659,20 @@ const App: React.FC = () => {
           status: statusMap[newStage]
         }
       };
-      console.log("[Lead] drag update payload", payload);
       const result = await dispatch(updateLeadAction(payload));
       if (updateLeadAction.fulfilled.match(result)) {
-        console.log("[Lead] drag update success", result.payload);
         const fallbackLead = leads.find((l) => l.id === leadId);
         const updatedLead = buildUiLeadFromRecord(result.payload.lead, fallbackLead || undefined);
         movedLead = updatedLead;
         setLeads((prev) => prev.map((l) => (l.id === leadId ? updatedLead : l)));
         setSelectedLead((prev) => (prev?.id === leadId ? updatedLead : prev));
       } else {
-        console.error("[Lead] drag update rejected", result);
         return;
       }
       if (newStage === PipelineStage.CLOSED && leadBeforeUpdate?.pipelineStage !== PipelineStage.CLOSED) {
         setClosingLead(movedLead || leadBeforeUpdate || null);
       }
-    } catch (error) {
-      console.error("[Lead] drag update failed", error);
-    }
+    } catch {}
   };
 
   const handleUpdateLead = async (updates: Partial<Lead>) => {
@@ -804,26 +722,19 @@ const App: React.FC = () => {
       delete payload.data.socialLinks;
     }
 
-    console.log("[Lead] update payload", payload);
     try {
       const result = await dispatch(updateLeadAction(payload));
       if (updateLeadAction.fulfilled.match(result)) {
-        console.log("[Lead] update success", result.payload);
         const updatedLead = buildUiLeadFromRecord(result.payload.lead, mergedLead);
         setLeads((prev) => prev.map((lead) => (lead.id === selectedLead.id ? updatedLead : lead)));
         setSelectedLead(updatedLead);
-      } else {
-        console.error("[Lead] update rejected", result);
       }
-    } catch (error) {
-      console.error("[Lead] update failed", error);
-    }
+    } catch {}
   };
 
   const handleAddComment = async (text: string) => {
     if (!selectedLead) return;
     if (!authUser?.userId) {
-      console.error("[Comment] create failed: missing auth user id");
       return;
     }
     try {
@@ -835,7 +746,6 @@ const App: React.FC = () => {
         })
       );
       if (!createCommentAction.fulfilled.match(result)) {
-        console.error("[Comment] create rejected", result);
         return;
       }
 
@@ -860,9 +770,7 @@ const App: React.FC = () => {
             }
           : null
       );
-    } catch (error) {
-      console.error("Failed to add comment:", error);
-    }
+    } catch {}
   };
 
   const handleUpdateComment = async (commentId: string, text: string) => {
@@ -871,7 +779,6 @@ const App: React.FC = () => {
     if (!trimmedText) return;
 
     try {
-      console.log("[Comment] update payload", { commentId, textLength: trimmedText.length });
       const result = await dispatch(
         updateCommentAction({
           commentId,
@@ -880,7 +787,6 @@ const App: React.FC = () => {
       );
 
       if (!updateCommentAction.fulfilled.match(result)) {
-        console.error("[Comment] update rejected", result);
         setToastState({
           open: true,
           type: "error",
@@ -892,7 +798,6 @@ const App: React.FC = () => {
       }
 
       const updatedComment = mapApiCommentToUi(result.payload.comment);
-      console.log("[Comment] update success", updatedComment);
       setLeads((prev) =>
         prev.map((lead) =>
           lead.id === selectedLead.id
@@ -917,7 +822,6 @@ const App: React.FC = () => {
         message: currentLang === "de" ? "Kommentar aktualisiert." : "Comment updated successfully."
       });
     } catch (error) {
-      console.error("[Comment] update failed", error);
       setToastState({
         open: true,
         type: "error",
@@ -930,7 +834,6 @@ const App: React.FC = () => {
     if (!selectedLead) return;
 
     try {
-      console.log("[Comment] delete payload", { commentId });
       const result = await dispatch(
         deleteCommentAction({
           commentId
@@ -938,7 +841,6 @@ const App: React.FC = () => {
       );
 
       if (!deleteCommentAction.fulfilled.match(result)) {
-        console.error("[Comment] delete rejected", result);
         setToastState({
           open: true,
           type: "error",
@@ -949,7 +851,6 @@ const App: React.FC = () => {
         return;
       }
 
-      console.log("[Comment] delete success", result.payload);
       setLeads((prev) =>
         prev.map((lead) =>
           lead.id === selectedLead.id
@@ -976,7 +877,6 @@ const App: React.FC = () => {
         message: currentLang === "de" ? "Kommentar gelöscht." : "Comment deleted successfully."
       });
     } catch (error) {
-      console.error("[Comment] delete failed", error);
       setToastState({
         open: true,
         type: "error",
@@ -1010,11 +910,9 @@ const App: React.FC = () => {
         status: statusMap[leadData.pipelineStage || PipelineStage.IDENTIFIED]
       };
 
-      console.log("[Lead] create payload", payload);
       const result = await dispatch(createLeadAction(payload));
 
       if (createLeadAction.fulfilled.match(result)) {
-        console.log("[Lead] create success", result.payload);
         setToastState({
           open: true,
           type: "success",
@@ -1049,7 +947,6 @@ const App: React.FC = () => {
 
         setLeads((prev) => [localLead, ...prev]);
       } else {
-        console.error("[Lead] create rejected", result);
         setToastState({
           open: true,
           type: "error",
@@ -1060,7 +957,6 @@ const App: React.FC = () => {
       }
       setIsModalOpen(false);
     } catch (error) {
-      console.error("Failed to create lead:", error);
       setToastState({
         open: true,
         type: "error",
@@ -1077,8 +973,6 @@ const App: React.FC = () => {
           `${l.firstName} ${l.lastName}`.toLowerCase().includes(search.toLowerCase()) ||
           l.currentPosition.toLowerCase().includes(search.toLowerCase());
         const matchesOwner = ownerFilter === "All" || l.ownerName === ownerFilter;
-        // Project filtering is performed at API level via getLeads params.
-        // Some API responses may omit projectId in list items, so avoid re-filtering client-side by projectId.
         return matchesSearch && matchesOwner;
       })
       .sort((a, b) => {
@@ -1167,7 +1061,6 @@ const App: React.FC = () => {
               <div className="flex items-center justify-between px-3">
                 <div className="flex items-center space-x-2 text-gray-400">
                   <Users size={16} />
-                  {/* Fixed: replaced 'lang' with 'currentLang' to fix find name 'lang' error */}
                   <span className="text-xs font-bold uppercase tracking-widest">
                     {currentLang === "de" ? "Admin Bereich" : "Admin Area"}
                   </span>
@@ -1292,7 +1185,6 @@ const App: React.FC = () => {
                 onClick={() => setIsProjectModalOpen(true)}
                 className="bg-white text-gray-700 border border-gray-200 px-4 py-2.5 rounded-xl font-bold text-sm hover:bg-gray-50 transition-all flex items-center shadow-sm"
               >
-                {/* Fixed: replaced 'lang' with 'currentLang' to fix find name 'lang' error */}
                 <FolderPlus size={18} className="mr-2 text-indigo-600" />{" "}
                 {currentLang === "de" ? "Projekt anlegen" : "Create Project"}
               </button>

@@ -20,6 +20,9 @@ import { getInvitationById } from "./store/actions/teamActions";
 import { useAppDispatch, useAppSelector } from "./store/hooks";
 import { clearAuthMessages } from "./store/slices/authSlice";
 
+const buildLoginPathWithEmail = (email?: string) =>
+  `/login${email ? `?email=${encodeURIComponent(email)}` : ""}`;
+
 const CatchAllRedirect: React.FC = () => {
   const dispatch = useAppDispatch();
   const { isAuthenticated, bootstrapStatus } = useAppSelector((state) => state.auth);
@@ -49,6 +52,11 @@ const SignInRoute: React.FC = () => {
   const hasVerificationParams = Boolean(email && code);
   const hasTriggeredVerification = useRef(false);
   const { signInStatus, verifyStatus, error } = useAppSelector((state) => state.auth);
+  const redirectToVerifiedLogin = () => {
+    const query = new URLSearchParams({ verified: "1" });
+    if (email) query.set("email", email);
+    navigate(`/login?${query.toString()}`, { replace: true });
+  };
 
   useEffect(() => {
     dispatch(clearAuthMessages());
@@ -56,10 +64,8 @@ const SignInRoute: React.FC = () => {
 
   useEffect(() => {
     if (!verifyFlag) return;
-    const query = new URLSearchParams({ verified: "1" });
-    if (email) query.set("email", email);
-    navigate(`/login?${query.toString()}`, { replace: true });
-  }, [email, navigate, verifyFlag]);
+    redirectToVerifiedLogin();
+  }, [verifyFlag]);
 
   useEffect(() => {
     if (!hasVerificationParams || hasTriggeredVerification.current) return;
@@ -70,10 +76,8 @@ const SignInRoute: React.FC = () => {
   useEffect(() => {
     if (!hasVerificationParams) return;
     if (verifyStatus !== "succeeded") return;
-    const query = new URLSearchParams({ verified: "1" });
-    if (email) query.set("email", email);
-    navigate(`/login?${query.toString()}`, { replace: true });
-  }, [email, hasVerificationParams, navigate, verifyStatus]);
+    redirectToVerifiedLogin();
+  }, [hasVerificationParams, verifyStatus]);
 
   return (
     <SignInPage
@@ -183,9 +187,7 @@ const ForgotPasswordRoute: React.FC = () => {
         emailFromUrl={email}
         codeFromUrl={code}
         onSubmit={(data) => dispatch(resetPassword(data))}
-        onBackToSignIn={() =>
-          navigate(`/login${email ? `?email=${encodeURIComponent(email)}` : ""}`)
-        }
+        onBackToSignIn={() => navigate(buildLoginPathWithEmail(email))}
         isLoading={resetStatus === "loading"}
         successMessage={resetStatus === "succeeded" ? resetMessage : null}
         errorMessage={error}
@@ -201,7 +203,7 @@ const ForgotPasswordRoute: React.FC = () => {
       }}
       onBackToSignIn={() => {
         const prefillEmail = lastForgotEmail || email;
-        navigate(`/login${prefillEmail ? `?email=${encodeURIComponent(prefillEmail)}` : ""}`);
+        navigate(buildLoginPathWithEmail(prefillEmail));
       }}
       isLoading={forgotStatus === "loading"}
       isSubmitted={forgotStatus === "succeeded"}
@@ -230,9 +232,7 @@ const ResetPasswordRoute: React.FC = () => {
       emailFromUrl={email}
       codeFromUrl={code}
       onSubmit={(data) => dispatch(resetPassword(data))}
-      onBackToSignIn={() =>
-        navigate(`/login${email ? `?email=${encodeURIComponent(email)}` : ""}`)
-      }
+      onBackToSignIn={() => navigate(buildLoginPathWithEmail(email))}
       isLoading={resetStatus === "loading"}
       successMessage={resetStatus === "succeeded" ? resetMessage : null}
       errorMessage={error}
@@ -247,13 +247,8 @@ const AppRoutes: React.FC = () => {
         <Route element={<PublicRoute />}>
           <Route path="/login" element={<SignInRoute />} />
           <Route path="/sign-up" element={<SignUpRoute />} />
-          <Route path="/signup" element={<SignUpRoute />} />
-          <Route path="/auth/sign-up" element={<SignUpRoute />} />
-          <Route path="/auth/signup" element={<SignUpRoute />} />
           <Route path="/forgot-password" element={<ForgotPasswordRoute />} />
-          <Route path="/auth/forgot-password" element={<ForgotPasswordRoute />} />
           <Route path="/reset-password" element={<ResetPasswordRoute />} />
-          <Route path="/auth/reset-password" element={<ResetPasswordRoute />} />
         </Route>
 
         <Route element={<ProtectedRoute />}>
