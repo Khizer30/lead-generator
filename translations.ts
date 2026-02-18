@@ -1,8 +1,8 @@
 export const translations = {
   de: {
     sidebar: {
-      dashboard: "Dashboard",
-      analytics: "Analytics",
+      dashboard: "Übersicht",
+      analytics: "Analysen",
       settings: "Einstellungen",
       team: "Team",
       assignTask: "Aufgabe zuweisen",
@@ -13,10 +13,10 @@ export const translations = {
       administrator: "Administrator"
     },
     analytics: {
-      title: "System Analytics",
+      title: "Systemanalysen",
       subtitle: "Detaillierte Auswertung Ihrer Vertriebserfolge und Pipeline-Performance.",
       tabDeals: "Abschlüsse",
-      tabPipeline: "Pipeline",
+      tabPipeline: "Trichter",
       kpiTotal: "Gesamtvolumen",
       kpiConsulting: "Beratung",
       kpiTraining: "Online Trading",
@@ -25,12 +25,13 @@ export const translations = {
       chartOwnerPerformance: "Umsatz nach Berater",
       chartPipelineFunnel: "Pipeline Trichter",
       chartLeadsByOwner: "Leads pro Betreuer",
+      dealsUnit: "Abschlüsse",
       exportDeals: "Abschlüsse exportieren",
       exportModalTitle: "Export-Zeitraum wählen",
       exportModalSubtitle: "Wählen Sie den Zeitraum für den Excel-Export der Abschlüsse.",
       downloadButton: "Export starten",
       metrics: {
-        conversionRate: "Conversion Rate",
+        conversionRate: "Konversionsrate",
         avgLeadAge: "Durchschn. Lead-Alter",
         activeLeads: "Aktive Leads",
         days: "Tage"
@@ -51,9 +52,12 @@ export const translations = {
       sortBy: "Sortieren:",
       lastName: "Nachname",
       date: "Datum",
+      leads: "Leads",
       projects: "Projekte",
+      createProject: "Projekt anlegen",
       share: "Teilen",
-      captureLead: "Lead",
+      captureLead: "Lead erfassen",
+      signOut: "Abmelden",
       exportTitle: "Alle Leads als Excel exportieren"
     },
     pipeline: {
@@ -212,6 +216,26 @@ export const translations = {
       title: "Benutzerverwaltung",
       subtitle: "Verwalten Sie Ihr Team und überwachen Sie den Aktivierungs-Status.",
       inviteBtn: "Benutzer einladen",
+      inviteModalTitle: "Team einladen",
+      inviteModalDesc:
+        "Laden Sie Kollegen ein, um gemeinsam an der Lead-Pipeline zu arbeiten. Eingeladene Personen können Leads sehen, bearbeiten und neue hinzufügen.",
+      inviteModalEmailLabel: "E-Mail Adresse des Mitarbeiters",
+      inviteModalEmailRequired: "E-Mail ist erforderlich.",
+      inviteModalEmailInvalid: "Bitte geben Sie eine gültige E-Mail-Adresse ein.",
+      inviteModalRoleLabel: "Berechtigungsstufe",
+      inviteModalRoleEditorDesc: "Kann Leads bearbeiten & erstellen",
+      inviteModalRoleAdminDesc: "Vollzugriff & Teamverwaltung",
+      inviteModalNotice:
+        "Der Zugriff ist uneingeschränkt. Neue Mitglieder können alle vorhandenen Lead-Daten einsehen und die Pipeline verwalten.",
+      inviteModalSending: "Einladung wird gesendet...",
+      inviteModalSend: "Einladung senden",
+      inviteModalSuccessTitle: "Einladung gesendet!",
+      inviteModalSuccessBody:
+        "Eine Einladung wurde an {email} gesendet. Sobald der Mitarbeiter bestätigt, hat er vollen Zugriff auf alle Leads.",
+      inviteModalDone: "Fertig",
+      pageLabel: "Seite {page} von {total}",
+      previous: "Zurück",
+      next: "Weiter",
       searchPlaceholder: "Nach Name oder E-Mail suchen...",
       colEmployee: "Mitarbeiter",
       colRole: "Rolle",
@@ -281,6 +305,7 @@ export const translations = {
       chartOwnerPerformance: "Revenue by Consultant",
       chartPipelineFunnel: "Pipeline Funnel",
       chartLeadsByOwner: "Leads per Owner",
+      dealsUnit: "Deals",
       exportDeals: "Export Deals",
       exportModalTitle: "Select Export Period",
       exportModalSubtitle: "Choose the timeframe for the Excel deal export.",
@@ -307,9 +332,12 @@ export const translations = {
       sortBy: "Sort by:",
       lastName: "Last Name",
       date: "Date",
+      leads: "Leads",
       projects: "Projects",
+      createProject: "Create Project",
       share: "Share",
       captureLead: "Lead",
+      signOut: "Sign out",
       exportTitle: "Export all leads to Excel"
     },
     pipeline: {
@@ -467,6 +495,26 @@ export const translations = {
       title: "User Management",
       subtitle: "Manage your team and monitor activation status.",
       inviteBtn: "Invite User",
+      inviteModalTitle: "Invite Team",
+      inviteModalDesc:
+        "Invite colleagues to collaborate on the lead pipeline. Invited people can view, edit, and add new leads.",
+      inviteModalEmailLabel: "Employee Email Address",
+      inviteModalEmailRequired: "Email is required.",
+      inviteModalEmailInvalid: "Please enter a valid email address.",
+      inviteModalRoleLabel: "Permission Level",
+      inviteModalRoleEditorDesc: "Can edit and create leads",
+      inviteModalRoleAdminDesc: "Full access & team management",
+      inviteModalNotice:
+        "Access is unrestricted. New members can view all existing lead data and manage the pipeline.",
+      inviteModalSending: "Sending invitation...",
+      inviteModalSend: "Send invitation",
+      inviteModalSuccessTitle: "Invitation sent!",
+      inviteModalSuccessBody:
+        "An invitation was sent to {email}. Once accepted, the team member will get full access to all leads.",
+      inviteModalDone: "Done",
+      pageLabel: "Page {page} of {total}",
+      previous: "Previous",
+      next: "Next",
       searchPlaceholder: "Search by name or email...",
       colEmployee: "Employee",
       colRole: "Role",

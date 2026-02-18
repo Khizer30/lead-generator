@@ -229,6 +229,7 @@ const UserManagementDashboard: React.FC<UserManagementDashboardProps> = ({ lang 
 
       {isInviteModalOpen && (
         <ShareModal
+          lang={lang}
           onClose={() => setIsInviteModalOpen(false)}
           onInvite={async ({ email, role }) => {
             const inviteAction = await dispatch(inviteTeamMember({ email, role }));
@@ -247,24 +248,24 @@ const UserManagementDashboard: React.FC<UserManagementDashboardProps> = ({ lang 
       )}
       <div className="mt-4 flex items-center justify-between border-t border-gray-100 pt-4">
         <p className="text-xs font-semibold text-gray-500">
-          {lang === "de" ? `Seite ${page} von ${totalPages}` : `Page ${page} of ${totalPages}`}
+          {t.userMgmt.pageLabel.replace("{page}", String(page)).replace("{total}", String(totalPages))}
         </p>
         <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={() => setPage((prev) => Math.max(1, prev - 1))}
             disabled={page <= 1 || loading}
-            className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-600 disabled:opacity-40"
-          >
-            {lang === "de" ? "Zuruck" : "Previous"}
+          className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-600 disabled:opacity-40"
+        >
+            {t.userMgmt.previous}
           </button>
           <button
             type="button"
             onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
             disabled={page >= totalPages || loading}
-            className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-600 disabled:opacity-40"
-          >
-            {lang === "de" ? "Weiter" : "Next"}
+          className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-600 disabled:opacity-40"
+        >
+            {t.userMgmt.next}
           </button>
         </div>
       </div>

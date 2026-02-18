@@ -539,7 +539,7 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
                   >
                     <span className="text-sm font-bold text-gray-700 truncate max-w-[200px]">{item.name}</span>
                     <span className="text-xs font-black text-emerald-600 bg-white px-2 py-1 rounded-lg border border-emerald-100">
-                      {item.count} Deals
+                      {item.count} {t.analytics.dealsUnit}
                     </span>
                   </div>
                 ))}

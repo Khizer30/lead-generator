@@ -1009,7 +1009,7 @@ const App: React.FC = () => {
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-extrabold text-gray-900">{t.pipeline.title}</h2>
           <div className="text-sm text-gray-500">
-            {t.pipeline.total}: <span className="font-bold text-gray-900">{filteredLeads.length}</span> Leads
+            {t.pipeline.total}: <span className="font-bold text-gray-900">{filteredLeads.length}</span> {t.header.leads}
           </div>
         </div>
         {loading || leadsListStatus === "loading" ? (
@@ -1047,13 +1047,13 @@ const App: React.FC = () => {
                 onClick={() => setActiveView("pipeline")}
                 className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg font-medium transition-all ${activeView === "pipeline" ? "bg-blue-50 text-blue-700" : "text-gray-500 hover:bg-gray-50"}`}
               >
-                <LayoutDashboard size={20} /> <span>Dashboard</span>
+                <LayoutDashboard size={20} /> <span>{t.sidebar.dashboard}</span>
               </button>
               <button
                 onClick={() => setActiveView("analytics")}
                 className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg font-medium transition-all ${activeView === "analytics" ? "bg-blue-50 text-blue-700" : "text-gray-500 hover:bg-gray-50"}`}
               >
-                <PieChart size={20} /> <span>Analytics</span>
+                <PieChart size={20} /> <span>{t.sidebar.analytics}</span>
               </button>
             </div>
 
@@ -1062,7 +1062,7 @@ const App: React.FC = () => {
                 <div className="flex items-center space-x-2 text-gray-400">
                   <Users size={16} />
                   <span className="text-xs font-bold uppercase tracking-widest">
-                    {currentLang === "de" ? "Admin Bereich" : "Admin Area"}
+                    {t.sidebar.administrator}
                   </span>
                 </div>
               </div>
@@ -1186,7 +1186,7 @@ const App: React.FC = () => {
                 className="bg-white text-gray-700 border border-gray-200 px-4 py-2.5 rounded-xl font-bold text-sm hover:bg-gray-50 transition-all flex items-center shadow-sm"
               >
                 <FolderPlus size={18} className="mr-2 text-indigo-600" />{" "}
-                {currentLang === "de" ? "Projekt anlegen" : "Create Project"}
+                {t.header.createProject}
               </button>
 
               <button
@@ -1202,10 +1202,10 @@ const App: React.FC = () => {
                   navigate("/login?signedOut=1", { replace: true });
                 }}
                 className="bg-white text-gray-700 border border-gray-200 px-3 py-2.5 rounded-xl font-bold text-sm hover:bg-gray-50 transition-all flex items-center shadow-sm"
-                title="Sign out"
+                title={t.header.signOut}
               >
                 <LogOut size={16} className="mr-2 text-gray-500" />
-                Sign out
+                {t.header.signOut}
               </button>
             </div>
           </header>
