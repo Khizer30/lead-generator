@@ -46,14 +46,13 @@ const SignInRoute: React.FC = () => {
   const signedOut = searchParams.get("signedOut") === "1";
   const verifySent = searchParams.get("verifySent") === "1";
   const verifyFlag = searchParams.get("verify") === "true";
-  const verifiedFlag = searchParams.get("verified") === "1";
   const email = searchParams.get("email") || "";
   const code = searchParams.get("code") || "";
   const hasVerificationParams = Boolean(email && code);
   const hasTriggeredVerification = useRef(false);
   const { signInStatus, verifyStatus, error } = useAppSelector((state) => state.auth);
   const redirectToVerifiedLogin = () => {
-    const query = new URLSearchParams({ verified: "1" });
+    const query = new URLSearchParams({ verify: "true" });
     if (email) query.set("email", email);
     navigate(`/login?${query.toString()}`, { replace: true });
   };
@@ -61,11 +60,6 @@ const SignInRoute: React.FC = () => {
   useEffect(() => {
     dispatch(clearAuthMessages());
   }, [dispatch]);
-
-  useEffect(() => {
-    if (!verifyFlag) return;
-    redirectToVerifiedLogin();
-  }, [verifyFlag]);
 
   useEffect(() => {
     if (!hasVerificationParams || hasTriggeredVerification.current) return;
@@ -90,11 +84,11 @@ const SignInRoute: React.FC = () => {
       successMessage={
         signedOut
           ? "You have been signed out successfully."
-          : verifiedFlag || verifyFlag
+          : verifyFlag
             ? "Account verified successfully. You can sign in now."
-          : verifySent
-            ? "Verification email sent. Please check your inbox and then sign in."
-            : null
+            : verifySent
+              ? "Verification email sent. Please check your inbox and then sign in."
+              : null
       }
     />
   );
