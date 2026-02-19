@@ -238,7 +238,7 @@ const AppRoutes: React.FC = () => {
       <Routes>
         <Route element={<PublicRoute />}>
           <Route path="/login" element={<SignInRoute />} />
-          <Route path="/sign-up" element={<SignUpRoute />} />
+          <Route path="/signup" element={<SignUpRoute />} />
           <Route path="/forgot-password" element={<ForgotPasswordRoute />} />
           <Route path="/reset-password" element={<ResetPasswordRoute />} />
         </Route>
