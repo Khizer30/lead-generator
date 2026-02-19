@@ -1,45 +1,48 @@
 import React, { useState } from "react";
+import { useFormik } from "formik";
+import * as Yup from "yup";
 import { X, Mail, Send, Check, Users, Shield, Loader2 } from "lucide-react";
+import { Language, translations } from "../translations";
 
 interface ShareModalProps {
+  lang: Language;
   onClose: () => void;
   onInvite?: (payload: { email: string; role: "EDITOR" | "ADMIN" }) => Promise<void> | void;
 }
 
-const ShareModal: React.FC<ShareModalProps> = ({ onClose, onInvite }) => {
-  const [email, setEmail] = useState("");
+const ShareModal: React.FC<ShareModalProps> = ({ lang, onClose, onInvite }) => {
+  const t = translations[lang];
   const [role, setRole] = useState<"Editor" | "Admin">("Editor");
   const [isSending, setIsSending] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [invitedEmail, setInvitedEmail] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
-  const [emailError, setEmailError] = useState("");
-  const normalizedEmail = email.trim();
-  const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail);
-
-  const handleInvite = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!normalizedEmail) {
-      setEmailError("Email is required.");
-      return;
+  const formik = useFormik<{ email: string }>({
+    initialValues: {
+      email: ""
+    },
+    validationSchema: Yup.object({
+      email: Yup.string()
+        .trim()
+        .required(t.userMgmt.inviteModalEmailRequired)
+        .email(t.userMgmt.inviteModalEmailInvalid)
+    }),
+    onSubmit: async (values) => {
+      setErrorMessage("");
+      setIsSending(true);
+      try {
+        const apiRole: "EDITOR" | "ADMIN" = role === "Admin" ? "ADMIN" : "EDITOR";
+        const normalizedEmail = values.email.trim();
+        await onInvite?.({ email: normalizedEmail, role: apiRole });
+        setInvitedEmail(normalizedEmail);
+        setIsSuccess(true);
+      } catch (error) {
+        setErrorMessage(error instanceof Error ? error.message : "Failed to send invitation");
+      } finally {
+        setIsSending(false);
+      }
     }
-    if (!isEmailValid) {
-      setEmailError("Please enter a valid email address.");
-      return;
-    }
-
-    setErrorMessage("");
-    setEmailError("");
-    setIsSending(true);
-    try {
-      const apiRole: "EDITOR" | "ADMIN" = role === "Admin" ? "ADMIN" : "EDITOR";
-      await onInvite?.({ email: normalizedEmail, role: apiRole });
-      setIsSending(false);
-      setIsSuccess(true);
-    } catch (error) {
-      setIsSending(false);
-      setErrorMessage(error instanceof Error ? error.message : "Failed to send invitation");
-    }
-  };
+  });
 
   if (isSuccess) {
     return (
@@ -49,16 +52,15 @@ const ShareModal: React.FC<ShareModalProps> = ({ onClose, onInvite }) => {
           <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
             <Check size={32} />
           </div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Einladung gesendet!</h2>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">{t.userMgmt.inviteModalSuccessTitle}</h2>
           <p className="text-gray-500 mb-8">
-            Eine Einladung wurde an <span className="font-semibold text-gray-900">{email}</span> gesendet. Sobald der
-            Mitarbeiter bestätigt, hat er vollen Zugriff auf alle Leads.
+            {(t.userMgmt.inviteModalSuccessBody ?? "An invitation was sent to {email}.").replace("{email}", invitedEmail)}
           </p>
           <button
             onClick={onClose}
             className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition-all"
           >
-            Fertig
+            {t.userMgmt.inviteModalDone}
           </button>
         </div>
       </div>
@@ -72,7 +74,7 @@ const ShareModal: React.FC<ShareModalProps> = ({ onClose, onInvite }) => {
         <div className="px-6 py-4 border-b flex justify-between items-center bg-gray-50">
           <div className="flex items-center space-x-2">
             <Users className="text-blue-600" size={20} />
-            <h2 className="text-lg font-bold text-gray-900">Team einladen</h2>
+            <h2 className="text-lg font-bold text-gray-900">{t.userMgmt.inviteModalTitle}</h2>
           </div>
           <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600 rounded-lg transition-colors">
             <X size={20} />
@@ -80,42 +82,32 @@ const ShareModal: React.FC<ShareModalProps> = ({ onClose, onInvite }) => {
         </div>
 
         <div className="p-8">
-          <p className="text-sm text-gray-500 mb-6">
-            Laden Sie Kollegen ein, um gemeinsam an der Lead-Pipeline zu arbeiten. Eingeladene Personen können Leads
-            sehen, bearbeiten und neue hinzufügen.
-          </p>
+          <p className="text-sm text-gray-500 mb-6">{t.userMgmt.inviteModalDesc}</p>
 
-          <form onSubmit={handleInvite} className="space-y-6">
+          <form onSubmit={formik.handleSubmit} className="space-y-6" noValidate>
             <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase mb-2">
-                E-Mail Adresse des Mitarbeiters
-              </label>
+              <label className="block text-xs font-bold text-gray-500 uppercase mb-2">{t.userMgmt.inviteModalEmailLabel}</label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
                   <Mail size={18} />
                 </div>
                 <input
-                  required
+                  name="email"
                   type="email"
-                  value={email}
-                  onChange={(e) => {
-                    setEmail(e.target.value);
-                    if (emailError) {
-                      const next = e.target.value.trim();
-                      if (!next) setEmailError("Email is required.");
-                      else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(next)) setEmailError("Please enter a valid email address.");
-                      else setEmailError("");
-                    }
-                  }}
-                  placeholder="kollege@unternehmen.de"
+                  value={formik.values.email}
+                  onChange={formik.handleChange}
+                  onBlur={formik.handleBlur}
+                  placeholder={lang === "de" ? "kollege@unternehmen.de" : "colleague@company.com"}
                   className="w-full pl-10 pr-4 py-3 border-gray-200 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm outline-none"
                 />
               </div>
-              {emailError && <p className="mt-1 text-xs font-semibold text-red-500">{emailError}</p>}
+              {formik.touched.email && formik.errors.email && (
+                <p className="mt-1 text-xs font-semibold text-red-500">{formik.errors.email}</p>
+              )}
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Berechtigungsstufe</label>
+              <label className="block text-xs font-bold text-gray-500 uppercase mb-2">{t.userMgmt.inviteModalRoleLabel}</label>
               <div className="grid grid-cols-2 gap-3">
                 <button
                   type="button"
@@ -126,7 +118,7 @@ const ShareModal: React.FC<ShareModalProps> = ({ onClose, onInvite }) => {
                     <span className="text-sm font-bold text-gray-900">Editor</span>
                     {role === "Editor" && <Check size={14} className="text-blue-600" />}
                   </div>
-                  <p className="text-[10px] text-gray-500">Kann Leads bearbeiten & erstellen</p>
+                  <p className="text-[10px] text-gray-500">{t.userMgmt.inviteModalRoleEditorDesc}</p>
                 </button>
                 <button
                   type="button"
@@ -137,35 +129,32 @@ const ShareModal: React.FC<ShareModalProps> = ({ onClose, onInvite }) => {
                     <span className="text-sm font-bold text-gray-900">Admin</span>
                     {role === "Admin" && <Check size={14} className="text-blue-600" />}
                   </div>
-                  <p className="text-[10px] text-gray-500">Vollzugriff & Teamverwaltung</p>
+                  <p className="text-[10px] text-gray-500">{t.userMgmt.inviteModalRoleAdminDesc}</p>
                 </button>
               </div>
             </div>
 
             <div className="bg-blue-50 p-4 rounded-xl flex items-start space-x-3">
               <Shield className="text-blue-600 shrink-0 mt-0.5" size={16} />
-              <p className="text-[11px] text-blue-700 leading-relaxed">
-                Der Zugriff ist uneingeschränkt. Neue Mitglieder können alle vorhandenen Lead-Daten einsehen und die
-                Pipeline verwalten.
-              </p>
+              <p className="text-[11px] text-blue-700 leading-relaxed">{t.userMgmt.inviteModalNotice}</p>
             </div>
 
             {errorMessage && <p className="text-xs font-semibold text-red-500">{errorMessage}</p>}
 
             <button
               type="submit"
-              disabled={isSending || !normalizedEmail || !isEmailValid}
+              disabled={isSending || !formik.isValid || !formik.values.email.trim()}
               className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-100 transition-all flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSending ? (
                 <>
                   <Loader2 className="animate-spin mr-2" size={18} />
-                  Einladung wird gesendet...
+                  {t.userMgmt.inviteModalSending}
                 </>
               ) : (
                 <>
                   <Send className="mr-2" size={18} />
-                  Einladung senden
+                  {t.userMgmt.inviteModalSend}
                 </>
               )}
             </button>

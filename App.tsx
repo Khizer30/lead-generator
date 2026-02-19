@@ -2,7 +2,6 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import { DndContext, DragEndEvent, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { Lead, PipelineStage, SortField, SortOrder, LeadFile, Owner, Task, Todo, Project, UserSettings, Deal, DealType } from "./types";
 import { api } from "./services/api";
-import { leadApi } from "./services/leadApi";
 import KanbanBoard from "./components/KanbanBoard";
 import LeadDetailDrawer from "./components/LeadDetailDrawer";
 import LeadModal from "./components/LeadModal";
@@ -18,13 +17,17 @@ import SettingsDashboard from "./components/SettingsDashboard";
 import UserManagementDashboard from "./components/UserManagementDashboard";
 import AnalyticsPage from "./pages/AnalyticsPage";
 import TrashModal from "./components/TrashModal";
+import ConfirmDeleteModal from "./components/ConfirmDeleteModal";
 import Toast from "./components/Toast";
 import NotificationToast from "./components/NotificationToast";
 import { translations, Language } from "./translations";
 import {
   Plus,
+  Menu,
+  X,
   Search,
   Filter,
+  Trash2,
   BarChart3,
   Users,
   LayoutDashboard,
@@ -42,26 +45,36 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAppDispatch, useAppSelector } from "./store/hooks";
-import { signOutLocal } from "./store/slices/authSlice";
+import { logout } from "./store/actions/authActions";
 import {
   createLead as createLeadAction,
-  deleteLead as deleteLeadAction,
+  getDeletedLeads as getDeletedLeadsAction,
   getLeadById as getLeadByIdAction,
   getLeads as getLeadsAction,
+  hardDeleteLead as hardDeleteLeadAction,
+  restoreLead as restoreLeadAction,
+  softDeleteLead as softDeleteLeadAction,
   updateLead as updateLeadAction
 } from "./store/actions/leadActions";
-import { getUsers } from "./store/actions/userActions";
+import { getUsers, updateUser } from "./store/actions/userActions";
 import { createDeal as createDealApiAction } from "./store/actions/dealActions";
-import { createProject as createProjectApiAction, getProjects as getProjectsAction } from "./store/actions/projectActions";
-import { CreateProjectPayload } from "./store/slices/projectSlice";
+import {
+  addLeadsToProject as addLeadsToProjectAction,
+  createProject as createProjectApiAction,
+  deleteProject as deleteProjectAction,
+  getProjectById as getProjectByIdAction,
+  getProjects as getProjectsAction,
+  removeLeadFromProject as removeLeadFromProjectAction,
+  updateProject as updateProjectAction
+} from "./store/actions/projectActions";
+import { CreateProjectPayload, type ProjectRecord } from "./store/slices/projectSlice";
 import type { LeadRecord } from "./store/slices/leadSlice";
 import {
   createComment as createCommentAction,
   deleteComment as deleteCommentAction,
   updateComment as updateCommentAction
 } from "./store/actions/commentActions";
-import { startNotificationStream, stopNotificationStream } from "./store/actions/notificationActions";
-import { pushLocalNotification } from "./store/slices/notificationSlice";
+import { initializeFirebaseNotifications, stopFirebaseNotifications } from "./store/actions/notificationActions";
 import { exportLeadsCsv } from "./store/actions/dashboardActions";
 
 
@@ -80,7 +93,6 @@ const App: React.FC = () => {
   const hasBootstrappedRef = useRef(false);
   const [activeView, setActiveView] = useState<ViewType>("pipeline");
   const [leads, setLeads] = useState<Lead[]>([]);
-  const [deletedLeads, setDeletedLeads] = useState<Lead[]>([]);
   const [owners, setOwners] = useState<Owner[]>([]);
   const [todos, setTodos] = useState<Todo[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -90,13 +102,17 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [createLeadError, setCreateLeadError] = useState<string | null>(null);
   const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
+  const [projectToEdit, setProjectToEdit] = useState<ProjectRecord | null>(null);
+  const [projectDeleteConfirm, setProjectDeleteConfirm] = useState<ProjectRecord | null>(null);
   const [isTrashModalOpen, setIsTrashModalOpen] = useState(false);
   const [toastState, setToastState] = useState<{ open: boolean; type: "success" | "error" | "info"; message: string }>({
     open: false,
     type: "info",
     message: ""
   });
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [notificationToastState, setNotificationToastState] = useState<{
     open: boolean;
     type: "success" | "error" | "info";
@@ -121,13 +137,20 @@ const App: React.FC = () => {
   const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
   const users = useAppSelector((state) => state.users.users);
   const projectRecords = useAppSelector((state) => state.projects.projects);
+  const projectsPage = useAppSelector((state) => state.projects.page);
+  const projectsLimit = useAppSelector((state) => state.projects.limit);
   const authUser = useAppSelector((state) => state.auth.user);
   const leadRecords = useAppSelector((state) => state.leads.leads);
+  const deletedLeadsRecords = useAppSelector((state) => state.leads.deletedLeads);
   const leadsListStatus = useAppSelector((state) => state.leads.listStatus);
   const latestNotification = useAppSelector((state) => state.notifications.items[0]);
   const currentLang = useMemo(() => userSettings?.language || "de", [userSettings]);
   const t = useMemo(() => translations[currentLang], [currentLang]);
   const lastToastNotificationIdRef = useRef<string | null>(null);
+  const syncedFcmTokenRef = useRef<string | null>(null);
+  const fcmInitInFlightRef = useRef(false);
+  const fcmInitDoneForUserRef = useRef<string | null>(null);
+  const fcmCleanupTimerRef = useRef<number | null>(null);
 
   const mapStatusToPipeline = (status?: string): PipelineStage => {
     if (status === "DELETED") return PipelineStage.TRASH;
@@ -175,6 +198,11 @@ const App: React.FC = () => {
     [currentLang, users]
   );
 
+  const deletedLeads = useMemo(
+    () => deletedLeadsRecords.map(mapLeadRecordToUi),
+    [deletedLeadsRecords, mapLeadRecordToUi]
+  );
+
   const refreshActiveLeads = useCallback(() => {
     if (activeView !== "pipeline") return;
     const ownerId = ownerFilter === "All" ? undefined : users.find((user) => user.name === ownerFilter)?.id;
@@ -190,11 +218,8 @@ const App: React.FC = () => {
   }, [activeView, dispatch, ownerFilter, projectFilter, search, sortField, users]);
 
   const fetchDeletedLeads = useCallback(async () => {
-    try {
-      const response = await leadApi.getLeads({ status: "DELETED", page: 1, limit: 200 });
-      setDeletedLeads(response.leads.map(mapLeadRecordToUi));
-    } catch {}
-  }, [mapLeadRecordToUi]);
+    await dispatch(getDeletedLeadsAction());
+  }, [dispatch]);
 
   useEffect(() => {
     if (hasBootstrappedRef.current) return;
@@ -204,17 +229,81 @@ const App: React.FC = () => {
     dispatch(getUsers({ page: 1, limit: 200 }));
     dispatch(getProjectsAction({ page: 1, limit: 200 }));
     fetchDeletedLeads();
-    if ("Notification" in window) {
-      Notification.requestPermission();
-    }
   }, [dispatch, fetchDeletedLeads]);
 
   useEffect(() => {
-    dispatch(startNotificationStream());
-    return () => {
-      dispatch(stopNotificationStream());
+    if (!authUser?.userId) return;
+    let isUnmounted = false;
+    const maskToken = (token: string) => (token.length > 12 ? `${token.slice(0, 6)}...${token.slice(-6)}` : token);
+
+    if (fcmCleanupTimerRef.current) {
+      window.clearTimeout(fcmCleanupTimerRef.current);
+      fcmCleanupTimerRef.current = null;
+    }
+
+    if (fcmInitInFlightRef.current) {
+      console.log("[FCM] Init already in progress, skipping duplicate call");
+      return;
+    }
+
+    if (fcmInitDoneForUserRef.current === authUser.userId) {
+      console.log("[FCM] Init already completed for this user, skipping duplicate call");
+      return;
+    }
+
+    const init = async () => {
+      fcmInitInFlightRef.current = true;
+      console.log("[FCM] Starting init flow for user:", authUser.userId);
+      const result = await dispatch(initializeFirebaseNotifications());
+      fcmInitInFlightRef.current = false;
+      if (isUnmounted) return;
+
+      if (!initializeFirebaseNotifications.fulfilled.match(result)) {
+        console.error("[Notification] Firebase init failed", result.payload);
+        return;
+      }
+
+      const token = result.payload.token;
+      console.log("[FCM] Init success. Token:", maskToken(token));
+
+      if (!token) {
+        console.warn("[FCM] Token missing after init");
+        return;
+      }
+
+      fcmInitDoneForUserRef.current = authUser.userId;
+      if (token === syncedFcmTokenRef.current) {
+        console.log("[FCM] Token already synced, skipping backend update");
+        return;
+      }
+
+      syncedFcmTokenRef.current = token;
+      console.log("[FCM] Syncing token to backend user profile...");
+      const updateResult = await dispatch(
+        updateUser({
+          userId: authUser.userId,
+          data: { fcmToken: token }
+        })
+      );
+
+      if (!updateUser.fulfilled.match(updateResult)) {
+        console.error("[Notification] Failed to sync FCM token", updateResult.payload);
+        return;
+      }
+      console.log("[FCM] Token synced to backend successfully");
     };
-  }, [dispatch]);
+
+    void init();
+
+    return () => {
+      isUnmounted = true;
+      fcmCleanupTimerRef.current = window.setTimeout(() => {
+        console.log("[FCM] Cleaning up Firebase notification listeners");
+        dispatch(stopFirebaseNotifications());
+        fcmCleanupTimerRef.current = null;
+      }, 150);
+    };
+  }, [authUser?.userId, dispatch]);
 
   useEffect(() => {
     if (!latestNotification) return;
@@ -319,7 +408,7 @@ const App: React.FC = () => {
   );
 
   const mapApiCommentToUi = useCallback(
-    (comment: { id: string; leadId: string; userId: string; text: string; createdAt?: string }) => {
+    (comment: { id: string; leadId: string; userId: string; text: string; createdAt?: string; date?: string }) => {
       const authorName = users.find((user) => user.id === comment.userId)?.name || authUser?.name || "Unknown";
       return {
         id: comment.id,
@@ -406,14 +495,6 @@ const App: React.FC = () => {
     });
   }, [currentLang, dispatch, ownerFilter, projectFilter, users]);
 
-  const sendPushNotification = useCallback(async (title: string, body: string) => {
-    const settings = await api.getSettings();
-    if (!settings.pushNotificationsEnabled) return;
-    if ("Notification" in window && Notification.permission === "granted") {
-      new Notification(title, { body });
-    }
-  }, []);
-
   const handleSaveDeal = async (dealData: DealModalSubmitPayload) => {
     const currency = dealData.currency === "USD" ? "DOLLAR" : "EURO";
     const payload = {
@@ -441,15 +522,6 @@ const App: React.FC = () => {
         });
         return;
       }
-      dispatch(
-        pushLocalNotification({
-          type: "DEAL_CREATED",
-          message:
-            currentLang === "de"
-              ? `Deal erstellt: ${dealData.name}`
-              : `Deal created: ${dealData.name}`
-        })
-      );
 
       const created = result.payload.deal;
       const mapDealTypeToLocal = (value?: string): DealType => {
@@ -471,15 +543,6 @@ const App: React.FC = () => {
         createdAt: created.createdAt || new Date().toISOString()
       };
       setDeals((prev) => [localDeal, ...prev]);
-
-      const currencySymbol = dealData.currency === "USD" ? "$" : "€";
-      const notificationTitle = t.deal.notificationTitle;
-      const notificationBody = t.deal.notificationBody
-        .replace("{owner}", closingLead?.ownerName || "Jemand")
-        .replace("{name}", dealData.name)
-        .replace("{amount}", dealData.totalAmount.toString())
-        .replace("{currency}", currencySymbol);
-      sendPushNotification(notificationTitle, notificationBody);
       setClosingLead(null);
     } catch (error) {
       setToastState({
@@ -494,10 +557,6 @@ const App: React.FC = () => {
     if (!taskingOwner) return;
     try {
       await api.assignTask(taskingOwner.id, "M. Nutzer", text, deadline);
-      sendPushNotification(
-        currentLang === "de" ? "Neue Aufgabe zugewiesen" : "New Task Assigned",
-        `${taskingOwner.name} ${currentLang === "de" ? "hat eine neue Aufgabe erhalten" : "received a new task"}: ${text}`
-      );
       fetchData();
     } catch {}
   };
@@ -540,10 +599,79 @@ const App: React.FC = () => {
     }
   };
 
+  const handleUpdateProject = async (
+    projectId: string,
+    data: { title: string; description?: string | null; projectManagerId: string },
+    leadDiff?: { leadIdsToAdd: string[]; leadIdsToRemove: string[] }
+  ) => {
+    try {
+      const result = await dispatch(updateProjectAction({ projectId, data }));
+      if (!updateProjectAction.fulfilled.match(result)) {
+        setToastState({
+          open: true,
+          type: "error",
+          message: (result.payload as string) || (currentLang === "de" ? "Projekt konnte nicht aktualisiert werden." : "Failed to update project.")
+        });
+        return;
+      }
+      if (leadDiff) {
+        if (leadDiff.leadIdsToAdd.length > 0) {
+          await dispatch(addLeadsToProjectAction({ projectId, leadIds: leadDiff.leadIdsToAdd }));
+        }
+        for (const leadId of leadDiff.leadIdsToRemove) {
+          await dispatch(removeLeadFromProjectAction({ projectId, leadId }));
+        }
+        void dispatch(getLeadsAction({ page: 1, limit: 500 }));
+      }
+      setToastState({
+        open: true,
+        type: "success",
+        message: result.payload?.message ?? (currentLang === "de" ? "Projekt aktualisiert." : "Project updated.")
+      });
+      setProjectToEdit(null);
+      setIsProjectModalOpen(false);
+      void dispatch(getProjectsAction({ page: projectsPage, limit: projectsLimit }));
+    } catch (error) {
+      setToastState({
+        open: true,
+        type: "error",
+        message: error instanceof Error ? error.message : currentLang === "de" ? "Projekt konnte nicht aktualisiert werden." : "Failed to update project."
+      });
+    }
+  };
+
+  const handleDeleteProjectConfirm = useCallback(async () => {
+    if (!projectDeleteConfirm) return;
+    const id = projectDeleteConfirm.id;
+    try {
+      const result = await dispatch(deleteProjectAction(id));
+      if (deleteProjectAction.fulfilled.match(result)) {
+        setToastState({
+          open: true,
+          type: "success",
+          message: result.payload?.message ?? (currentLang === "de" ? "Projekt gelöscht." : "Project deleted.")
+        });
+      } else {
+        setToastState({
+          open: true,
+          type: "error",
+          message: (result.payload as string) ?? (currentLang === "de" ? "Projekt konnte nicht gelöscht werden." : "Failed to delete project.")
+        });
+      }
+    } catch (error) {
+      setToastState({
+        open: true,
+        type: "error",
+        message: error instanceof Error ? error.message : currentLang === "de" ? "Projekt konnte nicht gelöscht werden." : "Failed to delete project."
+      });
+    }
+    setProjectDeleteConfirm(null);
+  }, [dispatch, projectDeleteConfirm, currentLang]);
+
   const handleDeleteLead = useCallback(async (id: string) => {
     try {
-      const result = await dispatch(deleteLeadAction(id));
-      if (deleteLeadAction.fulfilled.match(result)) {
+      const result = await dispatch(softDeleteLeadAction(id));
+      if (softDeleteLeadAction.fulfilled.match(result)) {
         setLeads((prev) => prev.filter((lead) => lead.id !== id));
         setSelectedLead((prev) => (prev?.id === id ? null : prev));
         await fetchDeletedLeads();
@@ -559,19 +687,37 @@ const App: React.FC = () => {
   const handleRestoreDeletedLead = useCallback(
     async (id: string) => {
       try {
-        const result = await dispatch(
-          updateLeadAction({
-            leadId: id,
-            data: { status: "IDENTIFIED" }
-          })
-        );
-        if (!updateLeadAction.fulfilled.match(result)) {
+        const result = await dispatch(restoreLeadAction(id));
+        if (!restoreLeadAction.fulfilled.match(result)) {
           return;
         }
         await Promise.all([fetchDeletedLeads(), Promise.resolve(refreshActiveLeads())]);
       } catch {}
     },
     [dispatch, fetchDeletedLeads, refreshActiveLeads]
+  );
+
+  const handlePermanentDeleteDeletedLead = useCallback(
+    async (id: string) => {
+      try {
+        const result = await dispatch(hardDeleteLeadAction(id));
+        if (hardDeleteLeadAction.fulfilled.match(result)) {
+          setToastState({
+            open: true,
+            type: "success",
+            message: result.payload?.message ?? (currentLang === "de" ? "Lead endgültig gelöscht." : "Lead permanently deleted.")
+          });
+          await fetchDeletedLeads();
+        } else {
+          setToastState({
+            open: true,
+            type: "error",
+            message: (result.payload as string) ?? (currentLang === "de" ? "Lead konnte nicht gelöscht werden." : "Failed to permanently delete lead.")
+          });
+        }
+      } catch {}
+    },
+    [currentLang, dispatch, fetchDeletedLeads]
   );
 
   const handleLeadClick = useCallback(
@@ -678,7 +824,7 @@ const App: React.FC = () => {
   const handleUpdateLead = async (updates: Partial<Lead>) => {
     if (!selectedLead) return;
     const notFoundTokens = new Set(["Not found", "Nicht gefunden"]);
-    const clean = (value?: string) => {
+    const clean = (value?: string): string | undefined => {
       if (!value) return undefined;
       const trimmed = value.trim();
       if (!trimmed || notFoundTokens.has(trimmed)) return undefined;
@@ -899,20 +1045,21 @@ const App: React.FC = () => {
 
       const payload = {
         ownerId: owner?.id || "",
-        firstName: leadData.firstName || "",
-        lastName: leadData.lastName || "",
-        position: leadData.currentPosition || "",
-        company: leadData.company || "",
-        email: leadData.email || "",
-        phone: leadData.phone || "",
+        firstName: leadData.firstName?.trim() || "",
+        lastName: leadData.lastName?.trim() || "",
+        position: leadData.currentPosition?.trim() || "",
+        company: leadData.company?.trim() || undefined,
+        email: leadData.email?.trim() || undefined,
+        phone: leadData.phone?.trim() || undefined,
         birthday: leadData.birthday || undefined,
-        socialLinks: leadData.linkedinUrl ? { linkedin: leadData.linkedinUrl } : undefined,
+        socialLinks: leadData.linkedinUrl?.trim() ? { linkedin: leadData.linkedinUrl.trim() } : undefined,
         status: statusMap[leadData.pipelineStage || PipelineStage.IDENTIFIED]
       };
 
       const result = await dispatch(createLeadAction(payload));
 
       if (createLeadAction.fulfilled.match(result)) {
+        setCreateLeadError(null);
         setToastState({
           open: true,
           type: "success",
@@ -946,22 +1093,16 @@ const App: React.FC = () => {
         };
 
         setLeads((prev) => [localLead, ...prev]);
+        setIsModalOpen(false);
       } else {
-        setToastState({
-          open: true,
-          type: "error",
-          message:
-            (result.payload as string) ||
-            (currentLang === "de" ? "Lead konnte nicht erstellt werden." : "Failed to create lead.")
-        });
+        setCreateLeadError(
+          (result.payload as string) || (currentLang === "de" ? "Lead konnte nicht erstellt werden." : "Failed to create lead.")
+        );
       }
-      setIsModalOpen(false);
     } catch (error) {
-      setToastState({
-        open: true,
-        type: "error",
-        message: error instanceof Error ? error.message : currentLang === "de" ? "Lead konnte nicht erstellt werden." : "Failed to create lead."
-      });
+      setCreateLeadError(
+        error instanceof Error ? error.message : currentLang === "de" ? "Lead konnte nicht erstellt werden." : "Failed to create lead."
+      );
     }
   };
 
@@ -1000,7 +1141,26 @@ const App: React.FC = () => {
       );
     if (activeView === "todos") return <TodoDashboard lang={currentLang} />;
     if (activeView === "sent_tasks") return <SentTasksDashboard lang={currentLang} />;
-    if (activeView === "my_projects") return <MyProjectsDashboard lang={currentLang} />;
+    if (activeView === "my_projects")
+      return (
+        <MyProjectsDashboard
+          lang={currentLang}
+          onEditProject={async (project) => {
+            const result = await dispatch(getProjectByIdAction(project.id));
+            if (getProjectByIdAction.fulfilled.match(result)) {
+              setProjectToEdit(result.payload);
+              setIsProjectModalOpen(true);
+            } else {
+              setToastState({
+                open: true,
+                type: "error",
+                message: (result.payload as string) ?? (currentLang === "de" ? "Projekt konnte nicht geladen werden." : "Failed to load project.")
+              });
+            }
+          }}
+          onDeleteProject={(project) => setProjectDeleteConfirm(project)}
+        />
+      );
     if (activeView === "settings") return <SettingsDashboard lang={currentLang} onSettingsUpdate={fetchData} />;
     if (activeView === "user_mgmt") return <UserManagementDashboard lang={currentLang} />;
 
@@ -1009,7 +1169,56 @@ const App: React.FC = () => {
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-extrabold text-gray-900">{t.pipeline.title}</h2>
           <div className="text-sm text-gray-500">
-            {t.pipeline.total}: <span className="font-bold text-gray-900">{filteredLeads.length}</span> Leads
+            {t.pipeline.total}: <span className="font-bold text-gray-900">{filteredLeads.length}</span> {t.header.leads}
+          </div>
+        </div>
+        <div className="lg:hidden mb-4 space-y-3">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+            <input
+              type="text"
+              placeholder={t.header.searchPlaceholder}
+              className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 transition-all"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <select
+              className="w-full bg-gray-50 text-sm font-semibold text-gray-700 border border-gray-200 rounded-xl px-3 py-2.5 focus:ring-2 focus:ring-blue-500"
+              value={ownerFilter}
+              onChange={(e) => setOwnerFilter(e.target.value)}
+            >
+              <option value="All">{t.header.allOwners}</option>
+              {uniqueOwners.map((o) => (
+                <option key={o} value={o}>
+                  {o}
+                </option>
+              ))}
+            </select>
+            <select
+              className="w-full bg-gray-50 text-sm font-semibold text-gray-700 border border-gray-200 rounded-xl px-3 py-2.5 focus:ring-2 focus:ring-blue-500"
+              value={projectFilter}
+              onChange={(e) => setProjectFilter(e.target.value)}
+            >
+              <option value="All">{t.header.allProjects}</option>
+              {projectOptions.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.title}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-white px-3 py-2.5">
+            <span className="text-sm text-gray-500">{t.header.sortBy}</span>
+            <button
+              onClick={() => setSortField(sortField === "lastName" ? "createdAt" : "lastName")}
+              className="text-sm font-bold text-blue-600"
+            >
+              {sortField === "lastName" ? t.header.lastName : t.header.date}
+            </button>
           </div>
         </div>
         {loading || leadsListStatus === "loading" ? (
@@ -1028,94 +1237,204 @@ const App: React.FC = () => {
     );
   };
 
+  const handleViewChange = (view: ViewType) => {
+    setActiveView(view);
+    setIsMobileSidebarOpen(false);
+  };
+
+  const SidebarContent = () => (
+    <>
+      <div className="p-6">
+        <div className="flex items-center space-x-2">
+          <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+            <BarChart3 className="text-white" size={18} />
+          </div>
+          <h1 className="text-xl font-bold text-gray-900 tracking-tight">LeadGen Pro</h1>
+        </div>
+      </div>
+
+      <nav className="flex-1 px-4 overflow-y-auto space-y-6">
+        <div className="space-y-1">
+          <button
+            onClick={() => handleViewChange("pipeline")}
+            className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg font-medium transition-all ${activeView === "pipeline" ? "bg-blue-50 text-blue-700" : "text-gray-500 hover:bg-gray-50"}`}
+          >
+            <LayoutDashboard size={20} /> <span>{t.sidebar.dashboard}</span>
+          </button>
+          <button
+            onClick={() => handleViewChange("analytics")}
+            className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg font-medium transition-all ${activeView === "analytics" ? "bg-blue-50 text-blue-700" : "text-gray-500 hover:bg-gray-50"}`}
+          >
+            <PieChart size={20} /> <span>{t.sidebar.analytics}</span>
+          </button>
+        </div>
+
+        <div className="space-y-4">
+          <div className="flex items-center justify-between px-3">
+            <div className="flex items-center space-x-2 text-gray-400">
+              <Users size={16} />
+              <span className="text-xs font-bold uppercase tracking-widest">{t.sidebar.administrator}</span>
+            </div>
+          </div>
+          <div className="space-y-1">
+            <button
+              onClick={() => handleViewChange("user_mgmt")}
+              className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg font-medium transition-all ${activeView === "user_mgmt" ? "bg-blue-50 text-blue-700" : "text-gray-500 hover:bg-gray-50"}`}
+            >
+              <ShieldCheck size={18} /> <span className="text-xs font-bold">{t.userMgmt.title}</span>
+            </button>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <div className="flex items-center justify-between px-3">
+            <div className="flex items-center space-x-2 text-gray-400">
+              <Briefcase size={16} />
+              <span className="text-xs font-bold uppercase tracking-widest">{t.sidebar.myArea}</span>
+            </div>
+          </div>
+          <div className="space-y-1">
+            <button
+              onClick={() => handleViewChange("todos")}
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-lg transition-all ${activeView === "todos" ? "bg-blue-50 text-blue-700" : "text-gray-500 hover:bg-gray-50"}`}
+            >
+              <div className="flex items-center space-x-3">
+                <CheckSquare size={18} /> <span className="text-xs font-bold">{t.sidebar.myTodos}</span>
+              </div>
+            </button>
+            <button
+              onClick={() => handleViewChange("my_projects")}
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-lg transition-all ${activeView === "my_projects" ? "bg-blue-50 text-blue-700" : "text-gray-500 hover:bg-gray-50"}`}
+            >
+              <div className="flex items-center space-x-3">
+                <FolderKanban size={18} /> <span className="text-xs font-bold">{t.sidebar.myProjects}</span>
+              </div>
+            </button>
+            <button
+              onClick={() => handleViewChange("settings")}
+              className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg font-medium transition-all ${activeView === "settings" ? "bg-blue-50 text-blue-700" : "text-gray-500 hover:bg-gray-50"}`}
+            >
+              <Settings size={18} /> <span className="text-xs font-bold">{t.sidebar.settings}</span>
+            </button>
+          </div>
+        </div>
+      </nav>
+
+      <div className="lg:hidden border-t border-gray-100 p-4 space-y-2">
+        <button
+          type="button"
+          onClick={() => {
+            handleExport();
+            setIsMobileSidebarOpen(false);
+          }}
+          className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg border border-gray-200 text-gray-700 font-semibold text-sm"
+        >
+          <Download size={16} className="text-emerald-600" />
+          {t.header.exportTitle}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            handleOpenTrashModal();
+            setIsMobileSidebarOpen(false);
+          }}
+          className="w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg border border-gray-200 text-gray-700 font-semibold text-sm"
+        >
+          <span className="flex items-center gap-2">
+            <Trash2 size={16} className="text-gray-500" />
+            {t.trash.title}
+          </span>
+          {trashedLeadsCount > 0 && (
+            <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white">
+              {trashedLeadsCount}
+            </span>
+          )}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setProjectToEdit(null);
+              setIsProjectModalOpen(true);
+            setIsMobileSidebarOpen(false);
+          }}
+          className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg border border-gray-200 text-gray-700 font-semibold text-sm"
+        >
+          <FolderPlus size={20} className="text-indigo-600" />
+          {t.header.createProject}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setCreateLeadError(null);
+            setIsModalOpen(true);
+            setIsMobileSidebarOpen(false);
+          }}
+          className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg bg-blue-600 text-white font-bold text-sm"
+        >
+          <Plus size={16} />
+          {t.header.captureLead}
+        </button>
+
+        <button
+          type="button"
+          onClick={async () => {
+            await dispatch(logout());
+            setIsMobileSidebarOpen(false);
+            navigate("/login?signedOut=1", { replace: true });
+          }}
+          className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg border border-gray-200 text-gray-700 font-semibold text-sm"
+        >
+          <LogOut size={20} className="text-gray-500" />
+          {t.header.signOut}
+        </button>
+      </div>
+    </>
+  );
+
   return (
     <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
       <div className="flex h-screen bg-gray-50 overflow-hidden">
         <aside className="w-64 bg-white border-r border-gray-200 hidden lg:flex flex-col">
-          <div className="p-6">
-            <div className="flex items-center space-x-2">
-              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-                <BarChart3 className="text-white" size={18} />
-              </div>
-              <h1 className="text-xl font-bold text-gray-900 tracking-tight">LeadGen Pro</h1>
-            </div>
-          </div>
-
-          <nav className="flex-1 px-4 overflow-y-auto space-y-6">
-            <div className="space-y-1">
-              <button
-                onClick={() => setActiveView("pipeline")}
-                className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg font-medium transition-all ${activeView === "pipeline" ? "bg-blue-50 text-blue-700" : "text-gray-500 hover:bg-gray-50"}`}
-              >
-                <LayoutDashboard size={20} /> <span>Dashboard</span>
-              </button>
-              <button
-                onClick={() => setActiveView("analytics")}
-                className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg font-medium transition-all ${activeView === "analytics" ? "bg-blue-50 text-blue-700" : "text-gray-500 hover:bg-gray-50"}`}
-              >
-                <PieChart size={20} /> <span>Analytics</span>
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <div className="flex items-center justify-between px-3">
-                <div className="flex items-center space-x-2 text-gray-400">
-                  <Users size={16} />
-                  <span className="text-xs font-bold uppercase tracking-widest">
-                    {currentLang === "de" ? "Admin Bereich" : "Admin Area"}
-                  </span>
-                </div>
-              </div>
-              <div className="space-y-1">
-                <button
-                  onClick={() => setActiveView("user_mgmt")}
-                  className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg font-medium transition-all ${activeView === "user_mgmt" ? "bg-blue-50 text-blue-700" : "text-gray-500 hover:bg-gray-50"}`}
-                >
-                  <ShieldCheck size={18} /> <span className="text-xs font-bold">{t.userMgmt.title}</span>
-                </button>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <div className="flex items-center justify-between px-3">
-                <div className="flex items-center space-x-2 text-gray-400">
-                  <Briefcase size={16} />
-                  <span className="text-xs font-bold uppercase tracking-widest">{t.sidebar.myArea}</span>
-                </div>
-              </div>
-              <div className="space-y-1">
-                <button
-                  onClick={() => setActiveView("todos")}
-                  className={`w-full flex items-center justify-between px-3 py-2 rounded-lg transition-all ${activeView === "todos" ? "bg-blue-50 text-blue-700" : "text-gray-500 hover:bg-gray-50"}`}
-                >
-                  <div className="flex items-center space-x-3">
-                    <CheckSquare size={18} /> <span className="text-xs font-bold">{t.sidebar.myTodos}</span>
-                  </div>
-                </button>
-                <button
-                  onClick={() => setActiveView("my_projects")}
-                  className={`w-full flex items-center justify-between px-3 py-2 rounded-lg transition-all ${activeView === "my_projects" ? "bg-blue-50 text-blue-700" : "text-gray-500 hover:bg-gray-50"}`}
-                >
-                  <div className="flex items-center space-x-3">
-                    <FolderKanban size={18} /> <span className="text-xs font-bold">{t.sidebar.myProjects}</span>
-                  </div>
-                </button>
-                <button
-                  onClick={() => setActiveView("settings")}
-                  className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg font-medium transition-all ${activeView === "settings" ? "bg-blue-50 text-blue-700" : "text-gray-500 hover:bg-gray-50"}`}
-                >
-                  <Settings size={18} /> <span className="text-xs font-bold">{t.sidebar.settings}</span>
-                </button>
-              </div>
-            </div>
-          </nav>
+          <SidebarContent />
         </aside>
 
+        {isMobileSidebarOpen && (
+          <div className="fixed inset-0 z-50 lg:hidden">
+            <div className="absolute inset-0 bg-black/30" onClick={() => setIsMobileSidebarOpen(false)} />
+            <aside className="absolute left-0 top-0 h-full w-72 max-w-[85vw] bg-white border-r border-gray-200 shadow-2xl flex flex-col">
+              <div className="px-4 py-4 border-b border-gray-100 flex items-center justify-end">
+                <button
+                  type="button"
+                  onClick={() => setIsMobileSidebarOpen(false)}
+                  className="p-2 rounded-lg text-gray-500 hover:bg-gray-100"
+                  aria-label="Close menu"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+              <SidebarContent />
+            </aside>
+          </div>
+        )}
+
         <main className="flex-1 flex flex-col min-w-0">
-          <header className="bg-white border-b border-gray-200 px-8 py-4 flex items-center justify-between sticky top-0 z-40">
-            {/* Search and Filters */}
-            <div className="flex items-center flex-1 max-w-3xl space-x-4">
-              <div className="relative flex-1">
+          <header className="bg-white border-b border-gray-200 px-4 lg:px-8 py-4 flex items-center justify-between sticky top-0 z-40">
+            <div className="flex items-center w-full">
+              <button
+                type="button"
+                onClick={() => setIsMobileSidebarOpen(true)}
+                className="lg:hidden p-2 rounded-lg border border-gray-200 text-gray-600 bg-white shrink-0"
+                aria-label="Open menu"
+              >
+                <Menu size={18} />
+              </button>
+
+              {/* Search and Filters (desktop only) */}
+              <div className="hidden lg:flex items-center flex-1 max-w-3xl space-x-4 ml-4">
+                <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                 <input
                   type="text"
@@ -1126,41 +1445,42 @@ const App: React.FC = () => {
                 />
               </div>
 
-              {/* Advanced Header Filters */}
-              <div className="flex items-center space-x-2 bg-gray-50 p-1 rounded-xl">
-                <div className="px-2 text-gray-400">
-                  <Filter size={14} />
+                {/* Advanced Header Filters */}
+                <div className="flex items-center space-x-2 bg-gray-50 p-1 rounded-xl">
+                  <div className="px-2 text-gray-400">
+                    <Filter size={14} />
+                  </div>
+                  <select
+                    className="bg-transparent text-xs font-semibold text-gray-600 border-none focus:ring-0 py-1"
+                    value={ownerFilter}
+                    onChange={(e) => setOwnerFilter(e.target.value)}
+                  >
+                    <option value="All">{t.header.allOwners}</option>
+                    {uniqueOwners.map((o) => (
+                      <option key={o} value={o}>
+                        {o}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="w-[1px] h-4 bg-gray-200 mx-1" />
+                  <select
+                    className="bg-transparent text-xs font-semibold text-gray-600 border-none focus:ring-0 py-1 max-w-[120px]"
+                    value={projectFilter}
+                    onChange={(e) => setProjectFilter(e.target.value)}
+                  >
+                    <option value="All">{t.header.allProjects}</option>
+                    {projectOptions.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.title}
+                      </option>
+                    ))}
+                  </select>
                 </div>
-                <select
-                  className="bg-transparent text-xs font-semibold text-gray-600 border-none focus:ring-0 py-1"
-                  value={ownerFilter}
-                  onChange={(e) => setOwnerFilter(e.target.value)}
-                >
-                  <option value="All">{t.header.allOwners}</option>
-                  {uniqueOwners.map((o) => (
-                    <option key={o} value={o}>
-                      {o}
-                    </option>
-                  ))}
-                </select>
-                <div className="w-[1px] h-4 bg-gray-200 mx-1" />
-                <select
-                  className="bg-transparent text-xs font-semibold text-gray-600 border-none focus:ring-0 py-1 max-w-[120px]"
-                  value={projectFilter}
-                  onChange={(e) => setProjectFilter(e.target.value)}
-                >
-                  <option value="All">{t.header.allProjects}</option>
-                  {projectOptions.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.title}
-                    </option>
-                  ))}
-                </select>
               </div>
             </div>
 
-            {/* Actions: Download, Trash, Projects, Create Lead */}
-            <div className="flex items-center space-x-3 ml-6">
+            {/* Actions: desktop only */}
+            <div className="hidden lg:flex items-center space-x-3 ml-6">
               <div className="flex items-center space-x-2 mr-2">
                 <span className="text-xs text-gray-400 font-medium">{t.header.sortBy}</span>
                 <button
@@ -1179,33 +1499,39 @@ const App: React.FC = () => {
                 <Download size={20} className="text-emerald-600 group-hover:scale-110 transition-transform" />
               </button>
 
-              <TrashBin onClick={handleOpenTrashModal} count={trashedLeadsCount} />
+              <TrashBin onClick={handleOpenTrashModal} count={trashedLeadsCount} title={t.trash.openTitle} />
 
               <button
-                onClick={() => setIsProjectModalOpen(true)}
+                onClick={() => {
+                  setProjectToEdit(null);
+                  setIsProjectModalOpen(true);
+                }}
                 className="bg-white text-gray-700 border border-gray-200 px-4 py-2.5 rounded-xl font-bold text-sm hover:bg-gray-50 transition-all flex items-center shadow-sm"
               >
-                <FolderPlus size={18} className="mr-2 text-indigo-600" />{" "}
-                {currentLang === "de" ? "Projekt anlegen" : "Create Project"}
+                <FolderPlus size={20} className="mr-2 text-indigo-600" />{" "}
+                {t.header.createProject}
               </button>
 
               <button
-                onClick={() => setIsModalOpen(true)}
+                onClick={() => {
+                  setCreateLeadError(null);
+                  setIsModalOpen(true);
+                }}
                 className="bg-blue-600 text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-lg shadow-blue-100 hover:bg-blue-700 transition-all flex items-center"
               >
                 <Plus size={18} className="mr-2" /> {t.header.captureLead}
               </button>
 
               <button
-                onClick={() => {
-                  dispatch(signOutLocal());
+                onClick={async () => {
+                  await dispatch(logout());
                   navigate("/login?signedOut=1", { replace: true });
                 }}
                 className="bg-white text-gray-700 border border-gray-200 px-3 py-2.5 rounded-xl font-bold text-sm hover:bg-gray-50 transition-all flex items-center shadow-sm"
-                title="Sign out"
+                title={t.header.signOut}
               >
-                <LogOut size={16} className="mr-2 text-gray-500" />
-                Sign out
+                <LogOut size={20} className="mr-2 text-gray-500" />
+                {t.header.signOut}
               </button>
             </div>
           </header>
@@ -1227,7 +1553,11 @@ const App: React.FC = () => {
         {isModalOpen && (
           <LeadModal
             owners={users.map((u) => ({ id: u.id, name: u.name }))}
-            onClose={() => setIsModalOpen(false)}
+            apiError={createLeadError}
+            onClose={() => {
+              setCreateLeadError(null);
+              setIsModalOpen(false);
+            }}
             onSave={handleCreateLead}
             lang={currentLang}
           />
@@ -1237,16 +1567,31 @@ const App: React.FC = () => {
             leads={leads}
             owners={users.map((u) => ({ id: u.id, name: u.name, role: u.role }))}
             lang={currentLang}
-            onClose={() => setIsProjectModalOpen(false)}
+            onClose={() => {
+              setProjectToEdit(null);
+              setIsProjectModalOpen(false);
+            }}
             onSave={handleCreateProject}
+            editingProject={projectToEdit}
+            onUpdate={handleUpdateProject}
           />
         )}
+        <ConfirmDeleteModal
+          isOpen={Boolean(projectDeleteConfirm)}
+          title={t.myProjects.deleteProjectTitle}
+          description={t.myProjects.deleteProjectDesc}
+          confirmLabel={t.common.delete}
+          cancelLabel={t.common.cancel}
+          onConfirm={handleDeleteProjectConfirm}
+          onCancel={() => setProjectDeleteConfirm(null)}
+        />
         {isTrashModalOpen && (
           <TrashModal
             leads={deletedLeads}
             lang={currentLang}
             onClose={() => setIsTrashModalOpen(false)}
             onRestore={handleRestoreDeletedLead}
+            onPermanentDelete={handlePermanentDeleteDeletedLead}
           />
         )}
         {taskingOwner && (

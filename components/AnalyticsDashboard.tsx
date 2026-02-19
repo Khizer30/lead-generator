@@ -33,7 +33,6 @@ interface AnalyticsDashboardProps {
   owners: Owner[];
   projects: Project[];
   lang: Language;
-  /** When provided, dashboard uses API data instead of computing from deals/leads */
   apiDealsData?: AnalyticsDealsData | null;
   apiPipelineData?: AnalyticsPipelineData | null;
   apiLoading?: boolean;
@@ -256,7 +255,7 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
           const counts: Record<string, { count: number; name: string }> = {};
           filteredDeals.forEach((deal) => {
             const lead = leads.find((l) => l.id === deal.leadId);
-            const leadName = lead ? `${lead.firstName} ${lead.lastName}` : "Unbekannt";
+            const leadName = lead ? `${lead.firstName} ${lead.lastName}` : t.analytics.unknownLead;
             if (!counts[deal.leadId]) counts[deal.leadId] = { count: 0, name: leadName };
             counts[deal.leadId].count += 1;
           });
@@ -308,6 +307,11 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
             (filteredLeads.filter((l) => l.pipelineStage === PipelineStage.CLOSED).length / filteredLeads.length) *
               100
           );
+  const conversionRateDisplay = useMemo(() => {
+    const n = Number(conversionRate);
+    if (!Number.isFinite(n)) return "0";
+    return n.toFixed(2).replace(/\.?0+$/, "");
+  }, [conversionRate]);
   const activeLeadsCount =
     isApiMode && apiPipelineData != null ? apiActiveLeads : filteredLeads.length;
   const leadsByOwnerCount =
@@ -346,9 +350,9 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
         return {
           ID: d.id,
           Bezeichnung: d.name,
-          Lead: lead ? `${lead.firstName} ${lead.lastName}` : "Unbekannt",
+          Lead: lead ? `${lead.firstName} ${lead.lastName}` : t.analytics.unknownLead,
           Firma: lead?.company || "",
-          Projekt: project?.title || "Kein Projekt",
+          Projekt: project?.title || t.analytics.noProject,
           Owner: lead?.ownerName || "",
           Art: d.type,
           Summe: d.totalAmount,
@@ -365,17 +369,19 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
     }
     const worksheet = XLSX.utils.json_to_sheet(exportData);
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Abschlüsse");
+    const sheetName = t.analytics.tabDeals.slice(0, 31);
+    XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+    const fileBase = lang === "de" ? "Abschluesse" : "Deals";
     XLSX.writeFile(
       workbook,
-      `Abschluesse_${start || "all"}_${end || "all"}.xlsx`
+      `${fileBase}_${start || "all"}_${end || "all"}.xlsx`
     );
   };
 
   const locale = lang === "de" ? "de-DE" : "en-US";
 
   return (
-    <div className="flex-1 flex flex-col p-8 bg-white/50 backdrop-blur-sm rounded-3xl m-4 shadow-inner overflow-hidden relative">
+    <div className="flex-1 min-h-0 flex flex-col p-4 lg:p-8 bg-white/50 backdrop-blur-sm rounded-3xl m-2 lg:m-4 shadow-inner overflow-y-auto lg:overflow-hidden relative">
       {apiLoading && (
         <div className="absolute inset-0 bg-white/80 flex items-center justify-center z-10 rounded-3xl">
           <Loader2 className="animate-spin text-blue-600" size={48} />
@@ -539,7 +545,7 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
                   >
                     <span className="text-sm font-bold text-gray-700 truncate max-w-[200px]">{item.name}</span>
                     <span className="text-xs font-black text-emerald-600 bg-white px-2 py-1 rounded-lg border border-emerald-100">
-                      {item.count} Deals
+                      {item.count} {t.analytics.dealsUnit}
                     </span>
                   </div>
                 ))}
@@ -591,7 +597,7 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
                 {t.analytics.metrics.conversionRate}
               </p>
               <div className="flex items-baseline gap-2">
-                <h4 className="text-2xl font-black text-emerald-600">{conversionRate}%</h4>
+                <h4 className="text-2xl lg:text-3xl font-black text-emerald-600 leading-none break-all">{conversionRateDisplay}%</h4>
                 <ArrowUpRight size={16} className="text-emerald-500" />
               </div>
             </div>
@@ -652,7 +658,9 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
                         </div>
                         <span className="text-sm font-bold text-gray-700">{oc.name}</span>
                       </div>
-                      <span className="text-sm font-black text-blue-600">{oc.count} Leads</span>
+                      <span className="text-sm font-black text-blue-600">
+                        {oc.count} {t.analytics.leadsUnit}
+                      </span>
                     </div>
                     <div className="h-4 w-full bg-gray-50 rounded-full overflow-hidden border border-gray-100 p-0.5">
                       <div
