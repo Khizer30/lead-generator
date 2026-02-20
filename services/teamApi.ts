@@ -5,11 +5,14 @@ import {
   TeamInvitation,
   TeamMember
 } from "../store/slices/teamSlice";
-import { request } from "./apiClient";
+import { request, requestPublic } from "./apiClient";
 
 type TeamApiResponse = {
   success?: boolean;
   message?: string;
+  id?: string;
+  invitationId?: string;
+  invitationID?: string;
   users?: TeamMember[];
   members?: TeamMember[];
   teamMembers?: TeamMember[];
@@ -67,7 +70,7 @@ export const teamApi = {
     if (typeof params.page === "number") query.set("page", String(params.page));
     if (typeof params.limit === "number") query.set("limit", String(params.limit));
 
-    const path = query.toString() ? `/user?${query.toString()}` : "/user";
+    const path = query.toString() ? `/team?${query.toString()}` : "/team";
     const response = await apiRequest(path, { method: "GET" });
     console.log("[Team API] members & invitations response", response);
     const data = response.data || {};
@@ -92,10 +95,11 @@ export const teamApi = {
         expiresOn?: string;
         invitedUserName?: string;
       };
+      const resolvedId = inv.id || inv.invitationId || inv.invitationID || inv._id || "";
       return {
         ...invitation,
-        id: inv.id || inv.invitationId || inv.invitationID || inv._id || "",
-        invitationId: inv.invitationId || inv.invitationID || inv.id || inv._id || "",
+        id: resolvedId,
+        invitationId: resolvedId,
         name: inv.name || inv.invitedUserName || undefined,
         expiresAt: inv.expiresAt || inv.invitationExpiresAt || inv.expiresOn || undefined
       };
@@ -149,11 +153,19 @@ export const teamApi = {
   },
 
   getInvitationById: async (invitationId: string): Promise<TeamInvitation> => {
-    const path = `/team/invitation/${invitationId}`;
-    console.log("[Team API] GET invitation by ID — request", { invitationId, path });
-    console.log("[Team API] invitationId", invitationId);
+    const path = `/team/invitation/${encodeURIComponent(invitationId)}`;
+    console.log("[Team API] GET invitation by ID — public request (no auth)", { invitationId, path });
 
-    const response = await apiRequest(path, { method: "GET" });
+    const res = await requestPublic(path, { method: "GET" });
+    const response = await parseJsonSafe(res);
+    if (!res.ok) {
+      const rawMessage = (response as { message?: string }).message || "";
+      const isAuthError = res.status === 401 || /not authenticated/i.test(rawMessage);
+      const message = isAuthError
+        ? "Invitation link could not be loaded. Please check the link or request a new invitation."
+        : rawMessage || "Invitation is invalid or expired.";
+      throw new Error(message);
+    }
 
     console.log("[Team API] GET invitation by ID — response", {
       invitationId,
@@ -165,7 +177,11 @@ export const teamApi = {
     console.log("[Team API] invitationId (resolved)", response.invitation?.id ?? response.invitationId ?? invitationId);
 
     if (response.invitation) {
-      return response.invitation;
+      return {
+        ...response.invitation,
+        id: response.invitation.id || response.invitation.invitationId || invitationId,
+        invitationId: response.invitation.invitationId || response.invitation.id || invitationId
+      };
     }
 
     return {
