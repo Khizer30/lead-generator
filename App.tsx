@@ -19,7 +19,6 @@ import AnalyticsPage from "./pages/AnalyticsPage";
 import TrashModal from "./components/TrashModal";
 import ConfirmDeleteModal from "./components/ConfirmDeleteModal";
 import Toast from "./components/Toast";
-import NotificationToast from "./components/NotificationToast";
 import { translations, Language } from "./translations";
 import
 {
@@ -119,18 +118,6 @@ const App: React.FC = () =>
     message: ""
   });
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
-  const [notificationToastState, setNotificationToastState] = useState<{
-    open: boolean;
-    type: "success" | "error" | "info";
-    title: string;
-    message: string;
-  }>({
-    open: false,
-    type: "info",
-    title: "Notification",
-    message: ""
-  });
-
   const [closingLead, setClosingLead] = useState<Lead | null>(null);
   const [taskingOwner, setTaskingOwner] = useState<Owner | null>(null);
 
@@ -149,10 +136,8 @@ const App: React.FC = () =>
   const leadRecords = useAppSelector((state) => state.leads.leads);
   const deletedLeadsRecords = useAppSelector((state) => state.leads.deletedLeads);
   const leadsListStatus = useAppSelector((state) => state.leads.listStatus);
-  const latestNotification = useAppSelector((state) => state.notifications.items[0]);
   const currentLang = useMemo(() => userSettings?.language || "de", [userSettings]);
   const t = useMemo(() => translations[currentLang], [currentLang]);
-  const lastToastNotificationIdRef = useRef<string | null>(null);
 
   const mapStatusToPipeline = (status?: string): PipelineStage =>
   {
@@ -270,28 +255,6 @@ const App: React.FC = () =>
     dispatch(getProjectsAction({ page: 1, limit: 200 }));
     fetchDeletedLeads();
   }, [dispatch, fetchDeletedLeads]);
-
-  useEffect(() =>
-  {
-    if (!latestNotification) return;
-    if (lastToastNotificationIdRef.current === latestNotification.id) return;
-    lastToastNotificationIdRef.current = latestNotification.id;
-
-    const typeLower = latestNotification.type.toLowerCase();
-    const toastType: "success" | "error" | "info" =
-      typeLower.includes("error") || typeLower.includes("failed")
-        ? "error"
-        : typeLower.includes("success") || typeLower.includes("created") || typeLower.includes("completed")
-          ? "success"
-          : "info";
-
-    setNotificationToastState({
-      open: true,
-      type: toastType,
-      title: latestNotification.type || "Notification",
-      message: latestNotification.message
-    });
-  }, [latestNotification]);
 
   useEffect(() =>
   {
@@ -1699,13 +1662,6 @@ const App: React.FC = () =>
           type={ toastState.type }
           message={ toastState.message }
           onClose={ () => setToastState((prev) => ({ ...prev, open: false, message: "" })) }
-        />
-        <NotificationToast
-          isOpen={ notificationToastState.open }
-          type={ notificationToastState.type }
-          title={ notificationToastState.title }
-          message={ notificationToastState.message }
-          onClose={ () => setNotificationToastState((prev) => ({ ...prev, open: false, message: "" })) }
         />
       </div>
     </DndContext>
